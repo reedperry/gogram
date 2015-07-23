@@ -2,7 +2,6 @@ package gogram
 
 import (
 	"net/http"
-	"time"
 )
 
 func init() {
