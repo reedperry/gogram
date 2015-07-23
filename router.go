@@ -15,7 +15,7 @@ func Router() *mux.Router {
 
 	r.HandleFunc("/post", CreatePost).Methods("POST")
 	r.HandleFunc("/post/{username}/{id}", GetPost).Methods("GET")
-	//r.HandleFunc("/post/{username}/{id}", DeletePost).Methods("DELETE")
+	r.HandleFunc("/post/{username}/{id}", DeletePost).Methods("DELETE")
 	//r.HandleFunc("/post/{username}/{id}", UpdatePost).Methods("PUT")
 
 	r.HandleFunc("/", ServeApp).Methods("GET")

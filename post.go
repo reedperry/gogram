@@ -78,7 +78,6 @@ func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
 }
 
 func CreatePost(w http.ResponseWriter, r *http.Request) {
-	var likes, comments []string
 	c := appengine.NewContext(r)
 	u, err := getRequestUser(r)
 	if err != nil {
@@ -88,6 +87,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := strconv.Itoa(time.Now().Nanosecond())
+	var likes, comments []string
 	post := &Post{u.Email, id, id, time.Now(), likes, comments}
 
 	body, err := ioutil.ReadAll(r.Body)
@@ -137,6 +137,47 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendJsonResponse(w, post)
+}
+
+func DeletePost(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	username := getRequestVar(r, "username", c)
+	postId := getRequestVar(r, "id", c)
+
+	postUser, err := fetchAppUserByName(username, c)
+	if err != nil {
+		http.Error(w, "Post not found.", http.StatusNotFound)
+		return
+	}
+
+	currentUser := user.Current(c)
+	if currentUser.Email != postUser.Id {
+		http.Error(w, "You can only delete your own posts.", http.StatusForbidden)
+		return
+	}
+
+	err = deletePost(postId, postUser.Id, c)
+	if err != nil {
+		c.Errorf("Failed to delete post %v from user %v.", postId, postUser.Id)
+		http.Error(w, "Failed to delete post.", http.StatusInternalServerError)
+		return
+	}
+
+	c.Infof("Deleted post %v from user %v.", postId, postUser.Id)
+
+	resp := OkResponse{true}
+	sendJsonResponse(w, resp)
+}
+
+func deletePost(postId, userId string, c appengine.Context) error {
+	postKey, err := getPostDSKey(userId, postId, c)
+	if err != nil {
+		c.Errorf("Failed to create Post Key ID")
+		return err
+	}
+
+	err = datastore.Delete(c, postKey)
+	return err
 }
 
 func getPostDSKey(userID, postID string, c appengine.Context) (*datastore.Key, error) {
