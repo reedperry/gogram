@@ -18,6 +18,7 @@ type Post struct {
 	User     string    `json:"user"`
 	Id       string    `json:"id"`
 	Image    string    `json:"image"`
+	Text     string    `json:"text"`
 	Posted   time.Time `json:"posted"`
 	Likes    []string  `json:"likes"`
 	Comments []string  `json:"comments"`
@@ -34,61 +35,18 @@ type Comment struct {
 	Date   time.Time `json:"date"`
 }
 
-func fetchAppUserByName(username string, c appengine.Context) (*AppUser, error) {
-	q := datastore.NewQuery(USER_KIND).
-		Filter("Username =", username)
-
-	for r := q.Run(c); ; {
-		var u AppUser
-		_, err := r.Next(&u)
-		if err == datastore.Done {
-			return nil, errors.New("No user with username " + username)
-		}
-		if err != nil {
-			c.Warningf("Failed to fetch AppUser with username '%v'\n", username)
-			return nil, err
-		}
-
-		return &u, nil
-	}
-}
-
-func fetchPost(userID, postID string, c appengine.Context) (*Post, error) {
-	post := new(Post)
-	postKey, err := getPostDSKey(userID, postID, c)
-	if err != nil {
-		return nil, err
-	}
-	err = datastore.Get(c, postKey, post)
-	if err != nil {
-		return nil, err
-	} else {
-		return post, nil
-	}
-}
-
-func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
-	postKey, err := getPostDSKey(post.User, post.Id, c)
-	key, err := datastore.Put(c, postKey, post)
-	if err != nil {
-		return nil, err
-	} else {
-		return key, nil
-	}
-}
-
 func CreatePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	u, err := getRequestUser(r)
 	if err != nil {
-		c.Errorf("No user to create post: %v\n", err)
-		http.Error(w, "No user signed in.", http.StatusForbidden)
+		c.Errorf("Must be signed in to create post: %v\n", err)
+		http.Error(w, "Not signed in.", http.StatusForbidden)
 		return
 	}
 
 	id := strconv.Itoa(time.Now().Nanosecond())
 	var likes, comments []string
-	post := &Post{u.Email, id, id, time.Now(), likes, comments}
+	post := &Post{u.Email, id, id, "", time.Now(), likes, comments}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -167,6 +125,49 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 
 	resp := OkResponse{true}
 	sendJsonResponse(w, resp)
+}
+
+func fetchAppUserByName(username string, c appengine.Context) (*AppUser, error) {
+	q := datastore.NewQuery(USER_KIND).
+		Filter("Username =", username)
+
+	for r := q.Run(c); ; {
+		var u AppUser
+		_, err := r.Next(&u)
+		if err == datastore.Done {
+			return nil, errors.New("No user with username " + username)
+		}
+		if err != nil {
+			c.Warningf("Failed to fetch AppUser with username '%v'\n", username)
+			return nil, err
+		}
+
+		return &u, nil
+	}
+}
+
+func fetchPost(userID, postID string, c appengine.Context) (*Post, error) {
+	post := new(Post)
+	postKey, err := getPostDSKey(userID, postID, c)
+	if err != nil {
+		return nil, err
+	}
+	err = datastore.Get(c, postKey, post)
+	if err != nil {
+		return nil, err
+	} else {
+		return post, nil
+	}
+}
+
+func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
+	postKey, err := getPostDSKey(post.User, post.Id, c)
+	key, err := datastore.Put(c, postKey, post)
+	if err != nil {
+		return nil, err
+	} else {
+		return key, nil
+	}
 }
 
 func deletePost(postId, userId string, c appengine.Context) error {
