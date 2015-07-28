@@ -1,4 +1,4 @@
-package gogram
+package api
 
 import (
 	"appengine"

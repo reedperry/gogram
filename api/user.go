@@ -1,4 +1,4 @@
-package gogram
+package api
 
 import (
 	"appengine"
@@ -161,6 +161,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	c.Infof("Created user %v.", appUser.Id)
 
 	resp := UserResponse{true, *appUser}
+	w.WriteHeader(http.StatusCreated)
 	sendJsonResponse(w, resp)
 }
 

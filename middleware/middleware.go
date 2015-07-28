@@ -1,10 +1,11 @@
-package gogram
+package middleware
 
 import (
 	"appengine"
 	"appengine/user"
 
 	"github.com/gorilla/context"
+	"github.com/reedperry/gogram/api"
 
 	"errors"
 	"fmt"
@@ -46,7 +47,7 @@ func authorize(r *http.Request, c appengine.Context) (*user.User, error) {
 		return nil, errors.New("Authorization failed. User not logged in.")
 	}
 
-	context.Set(r, UserCtxKey, u)
+	context.Set(r, api.UserCtxKey, u)
 
 	return u, nil
 }

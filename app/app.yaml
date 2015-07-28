@@ -1,0 +1,11 @@
+application: dotted-lens-442
+version: gogram
+runtime: go
+api_version: go1
+
+handlers:
+- url: /w
+  static_dir: app/static
+
+- url: /.*
+  script: _go_app
