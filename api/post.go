@@ -3,7 +3,6 @@ package api
 import (
 	"appengine"
 	"appengine/datastore"
-	"appengine/user"
 
 	"errors"
 	"io/ioutil"
@@ -14,6 +13,7 @@ import (
 
 const POST_KIND = "post"
 const NO_IMAGE = "__none__"
+const EPOCH = 1420070400000 // Jan 1 2015 midnight GMT
 
 type Post struct {
 	UserId   string    `json:"user"`
@@ -55,7 +55,7 @@ type Comment struct {
 
 func CreatePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	u, err := getRequestUser(r)
+	currentUser, err := getRequestUser(r)
 	if err != nil {
 		c.Errorf("Must be signed in to create post: %v\n", err)
 		http.Error(w, "Not signed in.", http.StatusForbidden)
@@ -74,9 +74,10 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := strconv.Itoa(time.Now().Nanosecond())
+
 	now := time.Now()
 	post := &Post{
-		UserId:   u.Email,
+		UserId:   currentUser.Email,
 		Id:       id,
 		EventId:  reqPost.EventId,
 		Image:    NO_IMAGE,
@@ -105,31 +106,30 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 // This function should be called immediately after a successfull call to CreatePost.
 func AttachImage(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	username := getRequestVar(r, "username", c)
 	postId := getRequestVar(r, "id", c)
 
-	u, err := getRequestUser(r)
+	currentUser, err := getRequestUser(r)
 	if err != nil {
 		c.Errorf("Must be signed in to create post: %v\n", err)
 		http.Error(w, "Not signed in.", http.StatusForbidden)
 		return
 	}
 
-	postUser, err := fetchAppUserByName(username, c)
+	post, err := fetchPost(postId, c)
 	if err != nil {
-		c.Errorf("Could not find AppUser for username %v: %v", username, err)
-		http.Error(w, "Failed to post image.", http.StatusInternalServerError)
-		return
-	} else if postUser.Id != u.Email {
-		c.Errorf("User with ID %v cannot attach an image to a post by user with ID %v", u.Email, postUser.Id)
-		http.Error(w, "Cannot post for a different user.", http.StatusForbidden)
+		c.Errorf("Cannot attach image - no post found with ID %v.", postId)
+		http.Error(w, "Failed to post image.", http.StatusNotFound)
 		return
 	}
 
-	post, err := fetchPost(postUser.Id, postId, c)
+	postUser, err := fetchAppUser(post.UserId, c)
 	if err != nil {
-		c.Errorf("Cannot attach image - no post found for user %v with post ID %v.", postUser.Id, postId)
-		http.Error(w, "Failed to post image.", http.StatusInternalServerError)
+		c.Errorf("Could not find AppUser with ID %v: %v", post.UserId, err)
+		http.Error(w, "Failed to post image.", http.StatusNotFound)
+		return
+	} else if postUser.Id != currentUser.Email {
+		c.Errorf("User with ID %v cannot attach an image to a post by user ID %v", currentUser.Email, postUser.Id)
+		http.Error(w, "Cannot post for a different user.", http.StatusForbidden)
 		return
 	}
 
@@ -144,37 +144,35 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 		c.Errorf("Failed to read request body: %v\n", err)
 		http.Error(w, "Failed to read request body!", http.StatusInternalServerError)
 		return
-	} else {
-		c.Infof("Request body: %s", body)
 	}
 
-	c.Infof("Recieved post for user %v, request content length is %v", u.Email, r.ContentLength)
-
+	c.Infof("Body length: %v", len(body))
+	c.Infof("Recieved post for user %v, request content length is %v", currentUser.Email, r.ContentLength)
 	c.Infof("Attachment of images not implemented yet...")
-
 }
 
 func GetPost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	username := getRequestVar(r, "username", c)
 	postId := getRequestVar(r, "id", c)
 
-	postUser, err := fetchAppUserByName(username, c)
+	post, err := fetchPost(postId, c)
 	if err != nil {
+		c.Infof("Could not fetch post %v: %v", postId, err.Error())
 		http.Error(w, "Post not found.", http.StatusNotFound)
 		return
 	}
 
-	currentUser := user.Current(c)
-	if postUser.Private && currentUser.Email != postUser.Id {
+	postUser, err := fetchAppUser(post.UserId, c)
+	if err != nil {
+		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
+		http.Error(w, "Post not found.", http.StatusNotFound)
+		return
+	}
+
+	currentUser, err := getRequestUser(r)
+
+	if postUser.Private && (currentUser == nil || currentUser.Email != postUser.Id) {
 		http.Error(w, "This user is private.", http.StatusForbidden)
-		return
-	}
-
-	post, err := fetchPost(postUser.Id, postId, c)
-	if err != nil {
-		c.Infof("Could not fetch post %v from user ID %v. %v", postId, postUser.Id, err.Error())
-		http.Error(w, "Post not found.", http.StatusNotFound)
 		return
 	}
 
@@ -183,25 +181,25 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 
 func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	username := getRequestVar(r, "username", c)
 	postId := getRequestVar(r, "id", c)
 
-	postUser, err := fetchAppUserByName(username, c)
+	post, err := fetchPost(postId, c)
 	if err != nil {
+		c.Errorf("Cannot update - post ID %v not found.", postId)
 		http.Error(w, "Post not found.", http.StatusNotFound)
 		return
 	}
 
-	currentUser := user.Current(c)
+	postUser, err := fetchAppUser(post.UserId, c)
+	if err != nil {
+		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
+		http.Error(w, "Post not found.", http.StatusNotFound)
+		return
+	}
+
+	currentUser, err := getRequestUser(r)
 	if currentUser.Email != postUser.Id {
 		http.Error(w, "You can only update your own posts.", http.StatusForbidden)
-		return
-	}
-
-	post, err := fetchPost(postUser.Id, postId, c)
-	if err != nil {
-		c.Errorf("Cannot update - post ID %v not found for user %v.", post.Id, postUser.Id)
-		http.Error(w, "Post not found.", http.StatusNotFound)
 		return
 	}
 
@@ -229,22 +227,29 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 func DeletePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	username := getRequestVar(r, "username", c)
 	postId := getRequestVar(r, "id", c)
 
-	postUser, err := fetchAppUserByName(username, c)
+	post, err := fetchPost(postId, c)
 	if err != nil {
+		c.Errorf("Cannot delete - post ID %v not found.", postId)
 		http.Error(w, "Post not found.", http.StatusNotFound)
 		return
 	}
 
-	currentUser := user.Current(c)
-	if currentUser.Email != postUser.Id {
-		http.Error(w, "You can only delete your own posts.", http.StatusForbidden)
+	postUser, err := fetchAppUser(post.UserId, c)
+	if err != nil {
+		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
+		http.Error(w, "Post not found.", http.StatusNotFound)
 		return
 	}
 
-	err = deletePost(postId, postUser.Id, c)
+	currentUser, err := getRequestUser(r)
+	if currentUser.Email != postUser.Id {
+		http.Error(w, "You can only update your own posts.", http.StatusForbidden)
+		return
+	}
+
+	err = deletePost(postId, c)
 	if err != nil {
 		c.Errorf("Failed to delete post %v from user %v.", postId, postUser.Id)
 		http.Error(w, "Failed to delete post.", http.StatusInternalServerError)
@@ -276,13 +281,11 @@ func fetchAppUserByName(username string, c appengine.Context) (*AppUser, error) 
 	}
 }
 
-func fetchPost(userID, postID string, c appengine.Context) (*Post, error) {
+func fetchPost(postID string, c appengine.Context) (*Post, error) {
 	post := new(Post)
-	postKey, err := getPostDSKey(userID, postID, c)
-	if err != nil {
-		return nil, err
-	}
-	err = datastore.Get(c, postKey, post)
+	postKey := getPostDSKey(postID, c)
+
+	err := datastore.Get(c, postKey, post)
 	if err != nil {
 		return nil, err
 	} else {
@@ -291,7 +294,7 @@ func fetchPost(userID, postID string, c appengine.Context) (*Post, error) {
 }
 
 func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
-	postKey, err := getPostDSKey(post.UserId, post.Id, c)
+	postKey := getPostDSKey(post.Id, c)
 	key, err := datastore.Put(c, postKey, post)
 	if err != nil {
 		return nil, err
@@ -300,31 +303,14 @@ func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
 	}
 }
 
-func deletePost(postId, userId string, c appengine.Context) error {
-	postKey, err := getPostDSKey(userId, postId, c)
-	if err != nil {
-		c.Errorf("Failed to create Post Key ID")
-		return err
-	}
+func deletePost(postId string, c appengine.Context) error {
+	postKey := getPostDSKey(postId, c)
 
-	err = datastore.Delete(c, postKey)
+	err := datastore.Delete(c, postKey)
 	return err
 }
 
-func getPostDSKey(userID, postID string, c appengine.Context) (*datastore.Key, error) {
-	postKeyID, err := createPostKeyID(userID, postID)
-	if err != nil {
-		c.Errorf("Failed creating Post Key ID: %v", err)
-		return nil, err
-	}
-	postKey := datastore.NewKey(c, POST_KIND, postKeyID, 0, nil)
-	return postKey, nil
-}
-
-func createPostKeyID(userID, postID string) (string, error) {
-	if userID == "" || postID == "" {
-		return "", errors.New("Missing userID or postID, cannot create Post Key ID")
-	}
-
-	return userID + "-" + postID, nil
+func getPostDSKey(postID string, c appengine.Context) *datastore.Key {
+	postKey := datastore.NewKey(c, POST_KIND, postID, 0, nil)
+	return postKey
 }

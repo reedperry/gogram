@@ -15,10 +15,10 @@ func Router() *mux.Router {
 	r.HandleFunc("/u/{username}", api.DeleteUser).Methods("DELETE")
 
 	r.HandleFunc("/p", api.CreatePost).Methods("POST")
-	r.HandleFunc("/p/{username}/{id}/attach", api.AttachImage).Methods("POST")
-	r.HandleFunc("/p/{username}/{id}", api.GetPost).Methods("GET")
-	r.HandleFunc("/p/{username}/{id}", api.DeletePost).Methods("DELETE")
-	r.HandleFunc("/p/{username}/{id}", api.UpdatePost).Methods("PUT")
+	r.HandleFunc("/p/{id}/attach", api.AttachImage).Methods("POST")
+	r.HandleFunc("/p/{id}", api.GetPost).Methods("GET")
+	r.HandleFunc("/p/{id}", api.DeletePost).Methods("DELETE")
+	r.HandleFunc("/p/{id}", api.UpdatePost).Methods("PUT")
 
 	r.HandleFunc("/e", api.CreateEvent).Methods("POST")
 	r.HandleFunc("/e/{id}", api.GetEvent).Methods("GET")

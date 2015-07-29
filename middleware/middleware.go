@@ -44,9 +44,11 @@ func Authorize(h http.Handler) http.Handler {
 func authorize(r *http.Request, c appengine.Context) (*user.User, error) {
 	u := user.Current(c)
 	if u == nil {
+		c.Infof("No user signed in.")
 		return nil, errors.New("Authorization failed. User not logged in.")
 	}
 
+	c.Infof("Active user: %v", u.Email)
 	context.Set(r, api.UserCtxKey, u)
 
 	return u, nil
