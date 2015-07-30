@@ -4,11 +4,8 @@ import (
 	"appengine"
 	"appengine/datastore"
 
-	"github.com/nu7hatch/gouuid"
-
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -79,14 +76,21 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eId, err := uuid.NewV4()
+	eId, err := NewUId(c)
 	if err != nil {
-		c.Errorf("Failed to generate event UUID: %v", err)
+		c.Errorf("Failed to generate event ID: %v", err)
 		http.Error(w, "Failed to create a new event.", http.StatusInternalServerError)
 		return
 	}
 
-	event.Id = strings.Replace(eId.String(), "-", "", -1)
+	_, err = fetchEvent(eId, c)
+	if err != datastore.ErrNoSuchEntity {
+		c.Errorf("Duplicate event ID generated! Aborting. Error: %v", err)
+		http.Error(w, "Failed to create a event, please try again.", http.StatusInternalServerError)
+		return
+	}
+
+	event.Id = eId
 	event.Creator = existingUser.Id
 	now := time.Now()
 	event.Created = now

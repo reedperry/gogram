@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -72,7 +71,19 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := strconv.Itoa(time.Now().Nanosecond())
+	id, err := NewUId(c)
+	if err != nil {
+		c.Errorf("Failed to generate post ID: %v", err)
+		http.Error(w, "Failed to create a post.", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = fetchPost(id, c)
+	if err != datastore.ErrNoSuchEntity {
+		c.Errorf("Duplicate post ID generated! Aborting. Error: %v", err)
+		http.Error(w, "Failed to create a post, please try again.", http.StatusInternalServerError)
+		return
+	}
 
 	now := time.Now()
 	post := &Post{
