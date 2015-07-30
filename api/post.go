@@ -13,7 +13,6 @@ import (
 
 const POST_KIND = "post"
 const NO_IMAGE = "__none__"
-const EPOCH = 1420070400000 // Jan 1 2015 midnight GMT
 
 type Post struct {
 	UserId   string    `json:"user"`

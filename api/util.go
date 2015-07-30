@@ -5,12 +5,18 @@ import (
 	"appengine/datastore"
 
 	"github.com/gorilla/mux"
+	"github.com/nu7hatch/gouuid"
 
 	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
+
+const EPOCH = 1420070400000 // Jan 1 2015 midnight GMT
 
 type ctxKey int
 
@@ -38,6 +44,31 @@ func getRequestVar(r *http.Request, varName string, c appengine.Context) string 
 	}
 
 	return value
+}
+
+func NewUId(c appengine.Context) (string, error) {
+	var id uint64
+	millis := time.Now().UnixNano() / 1000000
+	millis -= EPOCH
+
+	id = uint64(millis) << 16
+
+	random, err := uuid.NewV4()
+	if err != nil {
+		return "", err
+	}
+
+	randomStr := strings.Replace(random.String(), "-", "", -1)
+	hexStr := randomStr[23:27]
+	val, err := strconv.ParseInt(hexStr, 16, 32)
+	if err != nil {
+		return "", nil
+	}
+
+	num := uint16(val)
+	id |= (uint64(num) % 65536)
+
+	return strconv.FormatUint(id, 16), nil
 }
 
 // ReadEntity reads a JSON value into entity from a Request body.
