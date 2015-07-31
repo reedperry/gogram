@@ -4,17 +4,28 @@ import (
 	"appengine"
 	"appengine/datastore"
 
+	"github.com/reedperry/gogram/storage"
+
 	"errors"
-	"io/ioutil"
+	"fmt"
 	"net/http"
 	"time"
 )
 
 const POST_KIND = "post"
-const NO_IMAGE = "__none__"
 
 type Post struct {
 	UserId   string    `json:"user"`
+	Id       string    `json:"id"`
+	EventId  string    `json:"event"`
+	Image    string    `json:"image"`
+	Text     string    `json:"text"`
+	Created  time.Time `json:"posted"`
+	Modified time.Time `json:"modified"`
+}
+
+type ViewPost struct {
+	Username string    `json:"username"`
 	Id       string    `json:"id"`
 	EventId  string    `json:"event"`
 	Image    string    `json:"image"`
@@ -37,6 +48,10 @@ func (post *Post) IsValidRequest() bool {
 	}
 
 	return true
+}
+
+func (post *Post) createFileName() string {
+	return fmt.Sprintf("%v/%v", post.UserId, post.Id)
 }
 
 type CreatePostResponse struct {
@@ -66,7 +81,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !reqPost.IsValidRequest() {
-		c.Errorf("Invalid Post request object.")
+		c.Infof("Invalid Post request object.")
 		http.Error(w, "Invalid post data.", http.StatusBadRequest)
 		return
 	}
@@ -90,7 +105,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 		UserId:   currentUser.Email,
 		Id:       id,
 		EventId:  reqPost.EventId,
-		Image:    NO_IMAGE,
+		Image:    "",
 		Text:     reqPost.Text,
 		Created:  now,
 		Modified: now,
@@ -143,22 +158,35 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if post.Image != NO_IMAGE {
+	if post.Image != "" {
 		c.Errorf("Cannot attach image - Post %v by user %v already has an associated image.", postUser.Id, postId)
 		http.Error(w, "Cannot overwrite the image in a post.", http.StatusForbidden)
 		return
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	// TODO Validate size, anything else about request data if necessary...
+
+	filename := post.createFileName()
+	obj, err := storage.Create(filename, r)
 	if err != nil {
-		c.Errorf("Failed to read request body: %v\n", err)
-		http.Error(w, "Failed to read request body!", http.StatusInternalServerError)
+		c.Errorf("Failed to store image for user %v: %v", post.UserId, err)
+		http.Error(w, "An error occurred while attempting to save the file.", http.StatusInternalServerError)
 		return
 	}
 
-	c.Infof("Body length: %v", len(body))
-	c.Infof("Recieved post for user %v, request content length is %v", currentUser.Email, r.ContentLength)
-	c.Infof("Attachment of images not implemented yet...")
+	c.Infof("Stored file %v for user %v.", filename, post.UserId)
+
+	post.Image = storage.ObjectLink(obj)
+	post.Modified = time.Now()
+
+	_, err = savePost(post, c)
+	if err != nil {
+		c.Errorf("Failed to store updated Post (ID=%v) by user %v: %v", post.Id, postUser.Id, err)
+		http.Error(w, "Failed to update the post.", http.StatusInternalServerError)
+		return
+	}
+
+	sendJsonResponse(w, post)
 }
 
 func GetPost(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +214,17 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendJsonResponse(w, post)
+	viewPost := &ViewPost{
+		Username: postUser.Username,
+		Id:       post.Id,
+		EventId:  post.EventId,
+		Image:    post.Image,
+		Text:     post.Text,
+		Created:  post.Created,
+		Modified: post.Modified,
+	}
+
+	sendJsonResponse(w, viewPost)
 }
 
 func UpdatePost(w http.ResponseWriter, r *http.Request) {
@@ -218,6 +256,18 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		c.Errorf("Failed to read post data from request: %v", err)
 		http.Error(w, "Invalid post data in request.", http.StatusBadRequest)
+		return
+	}
+
+	if !updatedPost.IsValidRequest() {
+		c.Infof("Invalid Post request object.")
+		http.Error(w, "Invalid post data.", http.StatusBadRequest)
+		return
+	}
+
+	if updatedPost.EventId != post.EventId {
+		c.Infof("Cannot move post from event %v to event %v!", post.EventId, updatedPost.EventId)
+		http.Error(w, "Cannot move this post to a different event.", http.StatusBadRequest)
 		return
 	}
 
@@ -264,6 +314,13 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 		c.Errorf("Failed to delete post %v from user %v.", postId, postUser.Id)
 		http.Error(w, "Failed to delete post.", http.StatusInternalServerError)
 		return
+	}
+
+	filename := fmt.Sprintf("%v/%v", post.UserId, postId)
+	err = storage.Delete(filename, r)
+	if err != nil {
+		// TODO Add a retry to task queue if we can?
+		c.Errorf("Failed to delete file %v for user %v: %v", filename, post.UserId, err)
 	}
 
 	c.Infof("Deleted post %v from user %v.", postId, postUser.Id)

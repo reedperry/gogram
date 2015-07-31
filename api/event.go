@@ -52,6 +52,18 @@ func (event *Event) IsValid() bool {
 	return true
 }
 
+func (event *Event) IsValidRequest() bool {
+	if event.Id == "" || event.Name == "" || event.Start.IsZero() || event.Expiration.IsZero() {
+		return false
+	}
+
+	if event.Start.After(event.Expiration) || event.Expiration.Before(time.Now()) {
+		return false
+	}
+
+	return true
+}
+
 func CreateEvent(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 
@@ -73,6 +85,12 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 	if err := readEntity(r, event); err != nil {
 		c.Errorf("Failed to read event new data from request body: %v", err)
 		http.Error(w, "Invalid event creation request.", http.StatusBadRequest)
+		return
+	}
+
+	if !event.IsValidRequest() {
+		c.Infof("Invalid event request object.")
+		http.Error(w, "Invalid event data.", http.StatusBadRequest)
 		return
 	}
 
@@ -176,6 +194,12 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !event.IsValidRequest() {
+		c.Infof("Invalid event request object.")
+		http.Error(w, "Invalid event data.", http.StatusBadRequest)
+		return
+	}
+
 	// Copy fields that can be modified
 	event.Name = updated.Name
 	event.Description = updated.Description
@@ -209,6 +233,7 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 // DeleteEvent permanently removes an Event, along with all Posts associated with the Event.
 // Not sure whether this will really be used during regular operation...
 func DeleteEvent(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Not implemented."))
 }
 
 func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
