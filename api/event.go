@@ -6,6 +6,7 @@ import (
 
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -129,6 +130,33 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 	resp := CreateEventResponse{true, event.Id}
 	w.WriteHeader(http.StatusCreated)
 	sendJsonResponse(w, resp)
+}
+
+func EventsFeed(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	page := getRequestVar(r, "page", c)
+
+	var pageNum int = 0
+	if page != "" {
+		// Ignore error and default to page 0
+		pageNum, _ = strconv.Atoi(page)
+	}
+
+	events := make([]Event, 0, 20)
+
+	q := datastore.NewQuery(EVENT_KIND).
+		Order("-Created").
+		Limit(20).
+		Offset(20 * pageNum)
+
+	_, err := q.GetAll(c, &events)
+	if err != nil {
+		c.Errorf("Failed to get event feed: %v", err)
+		http.Error(w, "Could not load events.", http.StatusInternalServerError)
+		return
+	}
+
+	sendJsonResponse(w, events)
 }
 
 func GetEvent(w http.ResponseWriter, r *http.Request) {
