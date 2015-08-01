@@ -35,7 +35,7 @@ func requestVarProvided(r *http.Request, varName string) bool {
 	return ok
 }
 
-func getRequestVar(r *http.Request, varName string, c appengine.Context) string {
+func GetRequestVar(r *http.Request, varName string, c appengine.Context) string {
 	vars := mux.Vars(r)
 	value, ok := vars[varName]
 

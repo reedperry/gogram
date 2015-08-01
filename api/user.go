@@ -56,13 +56,13 @@ func (appUser *AppUser) DSKeyID(c appengine.Context) (string, error) {
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	username := getRequestVar(r, "username", c)
+	username := GetRequestVar(r, "username", c)
 	username = strings.ToLower(username)
 
 	userID, err := getUserID(username, c)
 	if err != nil {
 		c.Infof("Could not find user with username '%v': %v", username, err.Error())
-		http.Error(w, "User not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -91,23 +91,23 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 func GetUser(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	username := getRequestVar(r, "username", c)
+	username := GetRequestVar(r, "username", c)
 	username = strings.ToLower(username)
 
 	c.Infof("Getting user %v", username)
 	userID, err := getUserID(username, c)
 	if err != nil {
 		c.Infof("Could not find user with username '%v': %v", username, err.Error())
-		http.Error(w, "User not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
 	c.Infof("User ID is %v", userID)
 
-	appUser, err := fetchAppUser(userID, c)
+	appUser, err := FetchAppUser(userID, c)
 	if err != nil {
 		c.Infof("Could not fetch user '%v': %v", userID, err.Error())
-		http.Error(w, "User not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	} else if appUser.Private {
 		c.Infof("App user '%v' is private. Access Denied.", userID)
@@ -140,7 +140,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user exists
-	existingUser, err := fetchAppUser(u.Email, c)
+	existingUser, err := FetchAppUser(u.Email, c)
 	if existingUser != nil {
 		c.Infof("User with ID '%v' already exists. Cannot create a new user with that ID.", u.Email)
 		http.Error(w, fmt.Sprintf("Sorry, the username '%v' is already taken!", u.Email), http.StatusConflict)
@@ -180,7 +180,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	u := user.Current(c)
 	// Verify the user already exists
-	existingUser, err := fetchAppUser(u.Email, c)
+	existingUser, err := FetchAppUser(u.Email, c)
 	if existingUser != nil {
 		appUser.Username = strings.ToLower(appUser.Username)
 		appUser.Created = existingUser.Created
@@ -209,7 +209,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	sendJsonResponse(w, resp)
 }
 
-func fetchAppUser(userID string, c appengine.Context) (*AppUser, error) {
+func FetchAppUser(userID string, c appengine.Context) (*AppUser, error) {
 	appUser := new(AppUser)
 	userKey := getUserDSKey(userID, c)
 	err := datastore.Get(c, userKey, appUser)

@@ -1,4 +1,4 @@
-package gogram
+package app
 
 import (
 	"github.com/gorilla/mux"
@@ -9,22 +9,28 @@ func Router() *mux.Router {
 	r := mux.NewRouter()
 	r.StrictSlash(true)
 
-	r.HandleFunc("/u", api.CreateUser).Methods("POST")
-	r.HandleFunc("/u/{username}", api.GetUser).Methods("GET")
-	r.HandleFunc("/u/{username}", api.UpdateUser).Methods("PUT")
-	r.HandleFunc("/u/{username}", api.DeleteUser).Methods("DELETE")
+	r.HandleFunc("/a/u", api.CreateUser).Methods("POST")
+	r.HandleFunc("/a/u/{username}", api.GetUser).Methods("GET")
+	r.HandleFunc("/a/u/{username}", api.UpdateUser).Methods("PUT")
+	r.HandleFunc("/a/u/{username}", api.DeleteUser).Methods("DELETE")
 
-	r.HandleFunc("/p", api.CreatePost).Methods("POST")
-	r.HandleFunc("/p/{id}/attach", api.AttachImage).Methods("POST")
-	r.HandleFunc("/p/{id}", api.GetPost).Methods("GET")
-	r.HandleFunc("/p/{id}", api.DeletePost).Methods("DELETE")
-	r.HandleFunc("/p/{id}", api.UpdatePost).Methods("PUT")
+	r.HandleFunc("/a/p", api.CreatePost).Methods("POST")
+	r.HandleFunc("/a/p/{id}/attach", api.AttachImage).Methods("POST")
+	r.HandleFunc("/a/p/{id}", api.GetPost).Methods("GET")
+	r.HandleFunc("/a/p/{id}", api.DeletePost).Methods("DELETE")
+	r.HandleFunc("/a/p/{id}", api.UpdatePost).Methods("PUT")
 
-	r.HandleFunc("/e", api.CreateEvent).Methods("POST")
-	r.HandleFunc("/e/{id}", api.GetEvent).Methods("GET")
-	r.HandleFunc("/e/{id}", api.DeleteEvent).Methods("DELETE")
-	r.HandleFunc("/e/{id}", api.UpdateEvent).Methods("PUT")
+	r.HandleFunc("/a/e", api.CreateEvent).Methods("POST")
+	r.HandleFunc("/a/e/{id}", api.GetEvent).Methods("GET")
+	r.HandleFunc("/a/e/{id}", api.DeleteEvent).Methods("DELETE")
+	r.HandleFunc("/a/e/{id}", api.UpdateEvent).Methods("PUT")
+	r.HandleFunc("/a/feed/e", api.EventsFeed).Methods("GET")
+	r.HandleFunc("/a/feed/e/{page}", api.EventsFeed).Methods("GET")
+	r.HandleFunc("/a/feed/e/{order}/{page}", api.EventsFeed).Methods("GET")
 
-	r.HandleFunc("/", ServeApp).Methods("GET")
+	r.HandleFunc("/", ServeEventFeed).Methods("GET")
+	r.HandleFunc("/e/{id}", ServeEvent).Methods("GET")
+	r.HandleFunc("/p/{id}", ServePost).Methods("GET")
+
 	return r
 }

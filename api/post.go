@@ -24,7 +24,7 @@ type Post struct {
 	Modified time.Time `json:"modified"`
 }
 
-type ViewPost struct {
+type PostView struct {
 	Username string    `json:"username"`
 	Id       string    `json:"id"`
 	EventId  string    `json:"event"`
@@ -131,7 +131,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 // This function should be called immediately after a successfull call to CreatePost.
 func AttachImage(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := getRequestVar(r, "id", c)
+	postId := GetRequestVar(r, "id", c)
 
 	currentUser, err := getRequestUser(r)
 	if err != nil {
@@ -143,14 +143,14 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 	post, err := fetchPost(postId, c)
 	if err != nil {
 		c.Errorf("Cannot attach image - no post found with ID %v.", postId)
-		http.Error(w, "Failed to post image.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := fetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserId, c)
 	if err != nil {
 		c.Errorf("Could not find AppUser with ID %v: %v", post.UserId, err)
-		http.Error(w, "Failed to post image.", http.StatusNotFound)
+		http.Error(w, "Failed to post image: user not found.", http.StatusInternalServerError)
 		return
 	} else if postUser.Id != currentUser.Email {
 		c.Errorf("User with ID %v cannot attach an image to a post by user ID %v", currentUser.Email, postUser.Id)
@@ -191,19 +191,19 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 
 func GetPost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := getRequestVar(r, "id", c)
+	postId := GetRequestVar(r, "id", c)
 
 	post, err := fetchPost(postId, c)
 	if err != nil {
 		c.Infof("Could not fetch post %v: %v", postId, err.Error())
-		http.Error(w, "Post not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := fetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserId, c)
 	if err != nil {
 		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
-		http.Error(w, "Post not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -214,7 +214,7 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	viewPost := &ViewPost{
+	postView := &PostView{
 		Username: postUser.Username,
 		Id:       post.Id,
 		EventId:  post.EventId,
@@ -224,24 +224,24 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 		Modified: post.Modified,
 	}
 
-	sendJsonResponse(w, viewPost)
+	sendJsonResponse(w, postView)
 }
 
 func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := getRequestVar(r, "id", c)
+	postId := GetRequestVar(r, "id", c)
 
 	post, err := fetchPost(postId, c)
 	if err != nil {
 		c.Errorf("Cannot update - post ID %v not found.", postId)
-		http.Error(w, "Post not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := fetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserId, c)
 	if err != nil {
 		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
-		http.Error(w, "Post not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -287,19 +287,19 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 func DeletePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := getRequestVar(r, "id", c)
+	postId := GetRequestVar(r, "id", c)
 
 	post, err := fetchPost(postId, c)
 	if err != nil {
 		c.Errorf("Cannot delete - post ID %v not found.", postId)
-		http.Error(w, "Post not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := fetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserId, c)
 	if err != nil {
 		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
-		http.Error(w, "Post not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -358,6 +358,23 @@ func fetchPost(postID string, c appengine.Context) (*Post, error) {
 	} else {
 		return post, nil
 	}
+}
+
+func FetchPosts(eventId string, c appengine.Context) (*[]Post, error) {
+	q := datastore.NewQuery(POST_KIND).
+		Filter("EventId =", eventId).
+		Limit(20).
+		Order("-Created")
+
+	posts := make([]Post, 0, 20)
+
+	_, err := q.GetAll(c, &posts)
+	if err != nil {
+		c.Errorf("Failed to get event feed: %v", err)
+		return nil, err
+	}
+
+	return &posts, nil
 }
 
 func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {

@@ -7,10 +7,12 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const EVENT_KIND = "event"
+const DEFAULT_ORDER = "-Created"
 
 type Event struct {
 	Id          string    `json:"id"`
@@ -22,6 +24,17 @@ type Event struct {
 	Creator     string    `json:"creator"`
 	Created     time.Time `json:"created"`
 	Modified    time.Time `json:"modified"`
+}
+
+type EventView struct {
+	Name        string     `json:"name"`
+	Description string     `json:"desc"`
+	Start       time.Time  `json:"start"`
+	Expiration  time.Time  `json:"expiration"`
+	Creator     string     `json:"creator"`
+	Created     time.Time  `json:"created"`
+	Modified    time.Time  `json:"modified"`
+	Posts       []PostView `json:"posts"`
 }
 
 type CreateEventResponse struct {
@@ -75,7 +88,7 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser, err := fetchAppUser(u.Email, c)
+	existingUser, err := FetchAppUser(u.Email, c)
 	if err != nil {
 		c.Errorf("Not a registered user, cannot create an Event: %v", err)
 		http.Error(w, "Must register to create an event.", http.StatusForbidden)
@@ -102,7 +115,7 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = fetchEvent(eId, c)
+	_, err = FetchEvent(eId, c)
 	if err != datastore.ErrNoSuchEntity {
 		c.Errorf("Duplicate event ID generated! Aborting. Error: %v", err)
 		http.Error(w, "Failed to create a event, please try again.", http.StatusInternalServerError)
@@ -134,26 +147,12 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 func EventsFeed(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	page := getRequestVar(r, "page", c)
+	page := GetRequestVar(r, "page", c)
+	order := GetRequestVar(r, "order", c)
 
-	var pageNum int = 0
-	if page != "" {
-		// Ignore error and default to page 0
-		pageNum, _ = strconv.Atoi(page)
-	}
-
-	events := make([]Event, 0, 20)
-
-	q := datastore.NewQuery(EVENT_KIND).
-		Order("-Created").
-		Limit(20).
-		Offset(20 * pageNum)
-
-	_, err := q.GetAll(c, &events)
+	events, err := fetchEventFeed(page, order, c)
 	if err != nil {
-		c.Errorf("Failed to get event feed: %v", err)
-		http.Error(w, "Could not load events.", http.StatusInternalServerError)
-		return
+		http.Error(w, "Failed to fetch event feed.", http.StatusInternalServerError)
 	}
 
 	sendJsonResponse(w, events)
@@ -161,11 +160,11 @@ func EventsFeed(w http.ResponseWriter, r *http.Request) {
 
 func GetEvent(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	eventId := getRequestVar(r, "id", c)
-	event, err := fetchEvent(eventId, c)
+	eventId := GetRequestVar(r, "id", c)
+	event, err := FetchEvent(eventId, c)
 	if err != nil {
 		c.Errorf("Failed to fetch event with ID %v: %v", eventId, err)
-		http.Error(w, "Event not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -193,24 +192,24 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser, err := fetchAppUser(u.Email, c)
+	existingUser, err := FetchAppUser(u.Email, c)
 	if err != nil {
 		c.Errorf("Not a registered user, cannot update an Event: %v", err)
 		http.Error(w, "Must register to create or update events.", http.StatusForbidden)
 		return
 	}
 
-	eventId := getRequestVar(r, "id", c)
-	event, err := fetchEvent(eventId, c)
+	eventId := GetRequestVar(r, "id", c)
+	event, err := FetchEvent(eventId, c)
 	if err != nil {
 		c.Errorf("Failed to fetch event with ID %v: %v", eventId, err)
-		http.Error(w, "Event not found.", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
 	if event.Creator != existingUser.Id {
 		c.Errorf("User %v tried to update event created by %v - denied.", existingUser.Id, event.Creator)
-		http.Error(w, "You are not authorized to updated this event.", http.StatusNotFound)
+		http.Error(w, "You are not authorized to updated this event.", http.StatusForbidden)
 		return
 	}
 
@@ -279,7 +278,7 @@ func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
 	}
 }
 
-func fetchEvent(eventId string, c appengine.Context) (*Event, error) {
+func FetchEvent(eventId string, c appengine.Context) (*Event, error) {
 	eventKey, err := createDSKey(eventId, c)
 	if err != nil {
 		c.Errorf("Cannot fetch Event: %v", err)
@@ -293,6 +292,50 @@ func fetchEvent(eventId string, c appengine.Context) (*Event, error) {
 	}
 
 	return event, nil
+}
+
+func fetchEventFeed(page, order string, c appengine.Context) (*[]Event, error) {
+	var pageNum int = 0
+	if page != "" {
+		// Ignore error and default to page 0
+		pageNum, _ = strconv.Atoi(page)
+	}
+
+	var orderBy string = DEFAULT_ORDER
+	if validFeedOrder(order) {
+		orderBy = order
+	}
+
+	events := make([]Event, 0, 20)
+
+	q := datastore.NewQuery(EVENT_KIND).
+		Order(orderBy).
+		Limit(20).
+		Offset(20 * pageNum)
+
+	_, err := q.GetAll(c, &events)
+	if err != nil {
+		c.Errorf("Failed to get event feed: %v", err)
+		return nil, err
+	}
+
+	return &events, nil
+}
+
+func validFeedOrder(order string) bool {
+	if order == "" {
+		return false
+	}
+
+	if strings.HasPrefix(order, "-") {
+		order = order[1:]
+	}
+
+	if order == "Created" || order == "Expiration" {
+		return true
+	}
+
+	return false
 }
 
 func createDSKey(eventId string, c appengine.Context) (*datastore.Key, error) {

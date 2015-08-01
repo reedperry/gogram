@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+      <title>Snap</title>
+      <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.4/css/bootstrap.min.css">
+      <link href='//fonts.googleapis.com/css?family=Lato:400,400italic,700,700italic,300,300italic' rel='stylesheet' type='text/css'>
+      <link rel="stylesheet" href="/w/snap.css">
+  </head>
+
+  <body>
+    <div class="container-fluid">
+        <h2>Snap</h2>
+        <table id="events" class="table no-borders"><tbody></tbody></table>
+    </div>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-alpha1/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $.ajax({
+                url: '/a/feed/e',
+                success: function(data) {
+                    console.log('events: %O', data);
+                    content = '';
+                    for (i in data) {
+                        content += '<tr><td><h5><a href="/e/' + data[i].id + '">' + 
+                            data[i].name + '</a></h5><div>' + data[i].desc + '</div></td>' +
+                            '<td>Ends ' + new Date(data[i].expiration).toLocaleString() + '</td></tr>';
+                    }
+
+                    $('#events tbody').html(content);
+                }
+            });
+        });
+    </script>
+  </body>
+</html>

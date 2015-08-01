@@ -14,3 +14,9 @@ indexes:
   properties:
   - name: Username
   - name: Id
+
+- kind: post
+  properties:
+  - name: EventId
+  - name: Created
+    direction: desc
