@@ -3,12 +3,14 @@ package api
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/taskqueue"
 
 	"github.com/reedperry/gogram/imgstore"
 
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -19,7 +21,6 @@ type Post struct {
 	Id       string    `json:"id"`
 	EventId  string    `json:"event"`
 	Image    string    `json:"image"`
-	Preview  string    `json:"thumb"`
 	Text     string    `json:"text"`
 	Created  time.Time `json:"posted"`
 	Modified time.Time `json:"modified"`
@@ -30,7 +31,6 @@ type PostView struct {
 	Id       string    `json:"id"`
 	EventId  string    `json:"event"`
 	Image    string    `json:"image"`
-	Preview  string    `json:"thumb"`
 	Text     string    `json:"text"`
 	Created  time.Time `json:"posted"`
 	Modified time.Time `json:"modified"`
@@ -161,7 +161,7 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if post.Image != "" {
-		c.Errorf("Cannot attach image - Post %v by user %v already has an associated image.", postUser.Id, postId)
+		c.Errorf("Cannot attach image - Post %v by user %v already has an image attached.", postUser.Id, postId)
 		http.Error(w, "Cannot overwrite the image in a post.", http.StatusForbidden)
 		return
 	}
@@ -177,6 +177,10 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c.Infof("Stored file %v for user %v.", filename, post.UserId)
+
+	if err = queueProcessing(filename, c); err != nil {
+		c.Errorf("Failed to add file %v for post %v to image processing queue.", filename, post.Id)
+	}
 
 	post.Image = imgstore.ObjectLink(obj)
 	post.Modified = time.Now()
@@ -329,6 +333,16 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 
 	resp := OkResponse{true}
 	sendJsonResponse(w, resp)
+}
+
+func queueProcessing(filename string, c appengine.Context) error {
+	t := taskqueue.NewPOSTTask("/", url.Values{
+		"filename": {filename},
+	})
+
+	_, err := taskqueue.Add(c, t, "image-processor")
+
+	return err
 }
 
 func fetchAppUserByName(username string, c appengine.Context) (*AppUser, error) {

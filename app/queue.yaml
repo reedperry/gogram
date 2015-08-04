@@ -1,0 +1,6 @@
+queue:
+  - name: image-processor
+    target: imgproc
+    rate: 1/s
+    bucket_size: 50
+    max_concurrent_requests: 10

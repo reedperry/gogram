@@ -13,6 +13,15 @@ func init() {
 func ProcessImage(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 
+	if isAppEngineModuleRequest(r) {
+		return
+	}
+
+	if r.Header.Get("X-AppEngine-QueueName") == "" {
+		c.Errorf("Request missing required header for a Task Queue request. Processing aborted.")
+		return
+	}
+
 	filename := r.FormValue("filename")
 	if filename == "" {
 		c.Errorf("Form Value 'filename' is missing or empty.")
@@ -64,4 +73,9 @@ func ProcessImage(w http.ResponseWriter, r *http.Request) {
 
 func thumbnailFilename(filename string) string {
 	return filename + "_thumb"
+}
+
+func isAppEngineModuleRequest(r *http.Request) bool {
+	return r.Method == "GET" &&
+		(r.URL.Path == "/_ah/start" || r.URL.Path == "/_ah/stop")
 }
