@@ -1,4 +1,4 @@
-package storage
+package imgstore
 
 import (
 	"errors"
@@ -89,23 +89,9 @@ func Create(filename string, r *http.Request) (*storage.Object, error) {
 
 func Read(filename string, w http.ResponseWriter, r *http.Request) error {
 	c := appengine.NewContext(r)
-	bucket, err := file.DefaultBucketName(c)
-	if err != nil {
-		log.Errorf(c, "Failed to get default bucket: %v", err)
-		return err
-	}
 
-	ctx, err := auth(r)
+	rc, err := Reader(filename, r)
 	if err != nil {
-		log.Errorf(c, "Failed to get context: %v", err)
-		return err
-	}
-
-	log.Infof(c, "Retrieving file %v from bucket %v.", filename, bucket)
-
-	rc, err := storage.NewReader(ctx, bucket, filename)
-	if err != nil {
-		log.Errorf(c, "Failed to open file: %v", err)
 		return err
 	}
 
@@ -122,18 +108,83 @@ func Read(filename string, w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func GetMediaLink(filename string, r *http.Request) (string, error) {
+func Reader(filename string, r *http.Request) (io.ReadCloser, error) {
 	c := appengine.NewContext(r)
 	bucket, err := file.DefaultBucketName(c)
 	if err != nil {
 		log.Errorf(c, "Failed to get default bucket: %v", err)
-		return "", err
+		return nil, err
 	}
 
 	ctx, err := auth(r)
 	if err != nil {
 		log.Errorf(c, "Failed to get context: %v", err)
+		return nil, err
+	}
+
+	log.Infof(c, "Retrieving file %v from bucket %v.", filename, bucket)
+
+	rc, err := storage.NewReader(ctx, bucket, filename)
+	if err != nil {
+		log.Errorf(c, "Failed to open file: %v", err)
+		return nil, err
+	}
+
+	return rc, nil
+}
+
+func Writer(filename string, r *http.Request) (*storage.Writer, error) {
+	c := appengine.NewContext(r)
+	bucket, err := file.DefaultBucketName(c)
+	if err != nil {
+		log.Errorf(c, "Failed to get default bucket: %v", err)
+		return nil, err
+	}
+
+	ctx, err := auth(r)
+	if err != nil {
+		log.Errorf(c, "Failed to get context: %v", err)
+		return nil, err
+	}
+
+	w := storage.NewWriter(ctx, bucket, filename)
+
+	return w, nil
+}
+func MediaLink(filename string, r *http.Request) (string, error) {
+	obj, err := FileStats(filename, r)
+	if err != nil {
+		c := appengine.NewContext(r)
+		log.Errorf(c, "Failed to get file stats: %v", err)
 		return "", err
+	}
+
+	return obj.MediaLink, nil
+}
+
+func Filetype(filename string, r *http.Request) (string, error) {
+	obj, err := FileStats(filename, r)
+	if err != nil {
+		c := appengine.NewContext(r)
+		log.Errorf(c, "Failed to get file stats: %v", err)
+		return "", err
+	}
+
+	return obj.ContentType, nil
+}
+
+func FileStats(filename string, r *http.Request) (*storage.Object, error) {
+	c := appengine.NewContext(r)
+	bucket, err := file.DefaultBucketName(c)
+	if err != nil {
+		log.Errorf(c, "Failed to get default bucket: %v", err)
+		return nil, err
+	}
+
+	ctx, err := auth(r)
+	if err != nil {
+		log.Errorf(c, "Failed to get context: %v", err)
+		return nil, err
 	}
 
 	log.Infof(c, "Getting stats for file %v from bucket %v.", filename, bucket)
@@ -141,10 +192,10 @@ func GetMediaLink(filename string, r *http.Request) (string, error) {
 	obj, err := storage.StatObject(ctx, bucket, filename)
 	if err != nil {
 		log.Errorf(c, "Failed to stat file: %v", err)
-		return "", err
+		return nil, err
 	}
 
-	return obj.MediaLink, nil
+	return obj, nil
 }
 
 func Delete(filename string, r *http.Request) error {

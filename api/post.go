@@ -4,7 +4,7 @@ import (
 	"appengine"
 	"appengine/datastore"
 
-	"github.com/reedperry/gogram/storage"
+	"github.com/reedperry/gogram/imgstore"
 
 	"errors"
 	"fmt"
@@ -19,6 +19,7 @@ type Post struct {
 	Id       string    `json:"id"`
 	EventId  string    `json:"event"`
 	Image    string    `json:"image"`
+	Preview  string    `json:"thumb"`
 	Text     string    `json:"text"`
 	Created  time.Time `json:"posted"`
 	Modified time.Time `json:"modified"`
@@ -29,6 +30,7 @@ type PostView struct {
 	Id       string    `json:"id"`
 	EventId  string    `json:"event"`
 	Image    string    `json:"image"`
+	Preview  string    `json:"thumb"`
 	Text     string    `json:"text"`
 	Created  time.Time `json:"posted"`
 	Modified time.Time `json:"modified"`
@@ -167,7 +169,7 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 	// TODO Validate size, anything else about request data if necessary...
 
 	filename := post.createFileName()
-	obj, err := storage.Create(filename, r)
+	obj, err := imgstore.Create(filename, r)
 	if err != nil {
 		c.Errorf("Failed to store image for user %v: %v", post.UserId, err)
 		http.Error(w, "An error occurred while attempting to save the file.", http.StatusInternalServerError)
@@ -176,7 +178,7 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 
 	c.Infof("Stored file %v for user %v.", filename, post.UserId)
 
-	post.Image = storage.ObjectLink(obj)
+	post.Image = imgstore.ObjectLink(obj)
 	post.Modified = time.Now()
 
 	_, err = savePost(post, c)
@@ -317,7 +319,7 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filename := fmt.Sprintf("%v/%v", post.UserId, postId)
-	err = storage.Delete(filename, r)
+	err = imgstore.Delete(filename, r)
 	if err != nil {
 		// TODO Add a retry to task queue if we can?
 		c.Errorf("Failed to delete file %v for user %v: %v", filename, post.UserId, err)
