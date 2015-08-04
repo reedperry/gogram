@@ -79,11 +79,6 @@ func Create(filename string, r *http.Request) (*storage.Object, error) {
 
 	obj := w.Object()
 
-	err = storage.PutACLRule(ctx, obj.Bucket, obj.Name, storage.AllUsers, storage.RoleReader)
-	if err != nil {
-		log.Errorf(c, "Failed to apply ACL to file %v: %v", filename, err)
-	}
-
 	return obj, nil
 }
 
@@ -218,7 +213,7 @@ func Delete(filename string, r *http.Request) error {
 	if err != nil {
 		log.Errorf(c, "Failed to delete file.")
 
-		log.Infof(c, "Attempting to remove file access...")
+		log.Infof(c, "Attempting to remove public access to file...")
 
 		aclErr := storage.DeleteACLRule(ctx, bucket, filename, storage.AllUsers)
 		if aclErr != nil {

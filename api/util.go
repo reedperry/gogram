@@ -40,7 +40,7 @@ func GetRequestVar(r *http.Request, varName string, c appengine.Context) string 
 	value, ok := vars[varName]
 
 	if !ok {
-		c.Warningf("No var '%v' present in request URL.", varName)
+		c.Infof("No var '%v' present in request URL.", varName)
 	}
 
 	return value
