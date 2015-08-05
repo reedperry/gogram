@@ -66,6 +66,7 @@ func (event *Event) IsValid() bool {
 	return true
 }
 
+// TODO Put date range limitations on event start/end times
 func (event *Event) IsValidRequest() bool {
 	if event.Id == "" || event.Name == "" || event.Start.IsZero() || event.End.IsZero() {
 		return false
@@ -76,6 +77,15 @@ func (event *Event) IsValidRequest() bool {
 	}
 
 	return true
+}
+
+func (event *Event) IsActive() bool {
+	if event.Start.IsZero() || event.End.IsZero() {
+		return false
+	}
+
+	now := time.Now()
+	return event.End.After(now) && event.Start.Before(now)
 }
 
 func CreateEvent(w http.ResponseWriter, r *http.Request) {
@@ -128,6 +138,11 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 	event.Created = now
 	event.Modified = now
 
+	// If Start is in the past, align it with current time.
+	if event.Start.Before(now) {
+		event.Start = now
+	}
+
 	if !event.IsValid() {
 		c.Errorf("Event failed validation, aborting save.")
 		http.Error(w, "Failed to create a new event.", http.StatusInternalServerError)
@@ -168,16 +183,13 @@ func GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
-	isActive := event.End.After(now) && event.Start.Before(now)
-
 	resp := EventInfoResponse{
 		Id:          event.Id,
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
 		End:         event.End,
-		IsActive:    isActive,
+		IsActive:    event.IsActive(),
 	}
 	sendJsonResponse(w, resp)
 }
@@ -231,8 +243,19 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	event.Name = updated.Name
 	event.Description = updated.Description
 	event.Private = updated.Private
-	event.Start = updated.Start
+	// TODO Do we allow extending events that have expired?
 	event.End = updated.End
+
+	now := time.Now()
+	// Only allow modifying the start time if it is still in the future.
+	if event.Start != updated.Start && event.Start.After(now) {
+		event.Start = updated.Start
+	}
+
+	// If Start is in the past, align it with current time.
+	if event.Start.Before(now) {
+		event.Start = now
+	}
 
 	event.Modified = time.Now()
 
@@ -243,16 +266,13 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
-	isActive := event.End.After(now) && event.Start.Before(now)
-
 	resp := EventInfoResponse{
 		Id:          event.Id,
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
 		End:         event.End,
-		IsActive:    isActive,
+		IsActive:    event.IsActive(),
 	}
 	sendJsonResponse(w, resp)
 }
