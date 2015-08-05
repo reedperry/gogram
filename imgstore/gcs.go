@@ -193,6 +193,8 @@ func FileStats(filename string, r *http.Request) (*storage.Object, error) {
 	return obj, nil
 }
 
+// Delete removes an object by name from the bucket being used. If the object does not
+// exist and there is nothing to delete, Delete returns with no error.
 func Delete(filename string, r *http.Request) error {
 	c := appengine.NewContext(r)
 	bucket, err := file.DefaultBucketName(c)
@@ -207,17 +209,25 @@ func Delete(filename string, r *http.Request) error {
 		return err
 	}
 
-	log.Infof(c, "Deleting file %v from bucket %v.", filename, bucket)
+	log.Infof(c, "Attempting to delete file %v from bucket %v.", filename, bucket)
+
+	// StatObject is used here to check existence before calling DeleteObject.
+	// If the object does not exist, DeleteObject returns an error that is NOT
+	// ErrObjectNotExist, so it seemed more reliable to check with StatObject first...
+	_, err = storage.StatObject(ctx, bucket, filename)
+	if err == storage.ErrObjectNotExist {
+		log.Warningf(c, "Object does not exist, nothing to delete.")
+		return nil
+	}
 
 	err = storage.DeleteObject(ctx, bucket, filename)
 	if err != nil {
 		log.Errorf(c, "Failed to delete file.")
 
 		log.Infof(c, "Attempting to remove public access to file...")
-
 		aclErr := storage.DeleteACLRule(ctx, bucket, filename, storage.AllUsers)
 		if aclErr != nil {
-			log.Errorf(c, "Failed to remove file access!")
+			log.Errorf(c, "Failed to remove public file access!")
 		} else {
 			log.Infof(c, "File access removed.")
 		}

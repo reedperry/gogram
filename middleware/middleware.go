@@ -48,7 +48,7 @@ func authorize(r *http.Request, c appengine.Context) (*user.User, error) {
 		return nil, errors.New("Authorization failed. User not logged in.")
 	}
 
-	c.Infof("Active user: %v", u.Email)
+	c.Infof("Active user: %#v", u)
 	context.Set(r, api.UserCtxKey, u)
 
 	return u, nil

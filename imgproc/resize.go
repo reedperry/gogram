@@ -24,7 +24,7 @@ func makeThumbnail(filetype string, r io.Reader, w *storage.Writer) error {
 		return errors.New("Failed to decode image: " + err.Error())
 	}
 
-	tn := resize.Thumbnail(MAX_SIZE, MAX_SIZE, img, resize.Bilinear)
+	tn := resize.Thumbnail(MAX_SIZE, MAX_SIZE, img, resize.Bicubic)
 
 	err = encodeImage(w, filetype, tn)
 	if err != nil {
