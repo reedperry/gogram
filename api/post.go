@@ -104,7 +104,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	post := &Post{
-		UserId:   currentUser.Email,
+		UserId:   currentUser.ID,
 		Id:       id,
 		EventId:  reqPost.EventId,
 		Image:    "",
@@ -154,8 +154,8 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 		c.Errorf("Could not find AppUser with ID %v: %v", post.UserId, err)
 		http.Error(w, "Failed to post image: user not found.", http.StatusInternalServerError)
 		return
-	} else if postUser.Id != currentUser.Email {
-		c.Errorf("User with ID %v cannot attach an image to a post by user ID %v", currentUser.Email, postUser.Id)
+	} else if postUser.Id != currentUser.ID {
+		c.Errorf("User with ID %v cannot attach an image to a post by user ID %v", currentUser.ID, postUser.Id)
 		http.Error(w, "Cannot post for a different user.", http.StatusForbidden)
 		return
 	}
@@ -213,13 +213,6 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, err := getRequestUser(r)
-
-	if postUser.Private && (currentUser == nil || currentUser.Email != postUser.Id) {
-		http.Error(w, "This user is private.", http.StatusForbidden)
-		return
-	}
-
 	postView := &PostView{
 		Username: postUser.Username,
 		Id:       post.Id,
@@ -252,7 +245,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	currentUser, err := getRequestUser(r)
-	if currentUser.Email != postUser.Id {
+	if currentUser.ID != postUser.Id {
 		http.Error(w, "You can only update your own posts.", http.StatusForbidden)
 		return
 	}
@@ -310,7 +303,7 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	currentUser, err := getRequestUser(r)
-	if currentUser.Email != postUser.Id {
+	if currentUser.ID != postUser.Id {
 		http.Error(w, "You can only update your own posts.", http.StatusForbidden)
 		return
 	}
@@ -322,7 +315,7 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := fmt.Sprintf("%v/%v", post.UserId, postId)
+	filename := post.createFileName()
 	err = imgstore.Delete(filename, r)
 	if err != nil {
 		// TODO Add a retry to task queue if we can?
@@ -345,30 +338,14 @@ func queueProcessing(filename string, c appengine.Context) error {
 	return err
 }
 
-func fetchAppUserByName(username string, c appengine.Context) (*AppUser, error) {
-	q := datastore.NewQuery(USER_KIND).
-		Filter("Username =", username)
-
-	for r := q.Run(c); ; {
-		var u AppUser
-		_, err := r.Next(&u)
-		if err == datastore.Done {
-			return nil, errors.New("No user with username " + username)
-		}
-		if err != nil {
-			c.Warningf("Failed to fetch AppUser with username '%v'\n", username)
-			return nil, err
-		}
-
-		return &u, nil
-	}
-}
-
 func fetchPost(postID string, c appengine.Context) (*Post, error) {
 	post := new(Post)
-	postKey := getPostDSKey(postID, c)
+	postKey, err := getPostDSKey(postID, c)
+	if err != nil {
+		return nil, err
+	}
 
-	err := datastore.Get(c, postKey, post)
+	err = datastore.Get(c, postKey, post)
 	if err != nil {
 		return nil, err
 	} else {
@@ -394,7 +371,11 @@ func FetchPosts(eventId string, c appengine.Context) (*[]Post, error) {
 }
 
 func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
-	postKey := getPostDSKey(post.Id, c)
+	postKey, err := getPostDSKey(post.Id, c)
+	if err != nil {
+		return nil, err
+	}
+
 	key, err := datastore.Put(c, postKey, post)
 	if err != nil {
 		return nil, err
@@ -404,13 +385,29 @@ func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
 }
 
 func deletePost(postId string, c appengine.Context) error {
-	postKey := getPostDSKey(postId, c)
+	postKey, err := getPostDSKey(postId, c)
+	if err != nil {
+		return err
+	}
 
-	err := datastore.Delete(c, postKey)
+	err = datastore.Delete(c, postKey)
 	return err
 }
 
-func getPostDSKey(postID string, c appengine.Context) *datastore.Key {
-	postKey := datastore.NewKey(c, POST_KIND, postID, 0, nil)
-	return postKey
+func getPostDSKey(postID string, c appengine.Context) (*datastore.Key, error) {
+	if postID == "" {
+		return nil, errors.New("No postID provided.")
+	}
+
+	postKeyID := createPostKeyID(postID, c)
+	postKey := datastore.NewKey(c, POST_KIND, postKeyID, 0, nil)
+	return postKey, nil
+}
+
+func createPostKeyID(postID string, c appengine.Context) string {
+	if postID == "" {
+		c.Errorf("Creating a post entity key with no postID!")
+	}
+
+	return "post:" + postID
 }

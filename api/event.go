@@ -19,7 +19,7 @@ type Event struct {
 	Name        string    `json:"name"`
 	Description string    `json:"desc"`
 	Start       time.Time `json:"start"`
-	Expiration  time.Time `json:"expiration"`
+	End         time.Time `json:"expiration"`
 	Private     bool      `json:"private"`
 	Creator     string    `json:"creator"`
 	Created     time.Time `json:"created"`
@@ -30,7 +30,7 @@ type EventView struct {
 	Name        string     `json:"name"`
 	Description string     `json:"desc"`
 	Start       time.Time  `json:"start"`
-	Expiration  time.Time  `json:"expiration"`
+	End         time.Time  `json:"expiration"`
 	Creator     string     `json:"creator"`
 	Created     time.Time  `json:"created"`
 	Modified    time.Time  `json:"modified"`
@@ -47,19 +47,19 @@ type EventInfoResponse struct {
 	Name        string    `json:"name"`
 	Description string    `json:"desc"`
 	Start       time.Time `json:"start"`
-	Expiration  time.Time `json:"expiration"`
+	End         time.Time `json:"expiration"`
 	IsActive    bool      `json:"isActive"`
 }
 
 func (event *Event) IsValid() bool {
 	if event.Id == "" || event.Name == "" ||
-		event.Start.IsZero() || event.Expiration.IsZero() ||
+		event.Start.IsZero() || event.End.IsZero() ||
 		event.Creator == "" || event.Created.IsZero() {
 
 		return false
 	}
 
-	if event.Start.After(event.Expiration) || event.Expiration.Before(time.Now()) {
+	if event.Start.After(event.End) || event.End.Before(time.Now()) {
 		return false
 	}
 
@@ -67,11 +67,11 @@ func (event *Event) IsValid() bool {
 }
 
 func (event *Event) IsValidRequest() bool {
-	if event.Id == "" || event.Name == "" || event.Start.IsZero() || event.Expiration.IsZero() {
+	if event.Id == "" || event.Name == "" || event.Start.IsZero() || event.End.IsZero() {
 		return false
 	}
 
-	if event.Start.After(event.Expiration) || event.Expiration.Before(time.Now()) {
+	if event.Start.After(event.End) || event.End.Before(time.Now()) {
 		return false
 	}
 
@@ -88,7 +88,7 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser, err := FetchAppUser(u.Email, c)
+	existingUser, err := FetchAppUser(u.ID, c)
 	if err != nil {
 		c.Errorf("Not a registered user, cannot create an Event: %v", err)
 		http.Error(w, "Must register to create an event.", http.StatusForbidden)
@@ -169,14 +169,14 @@ func GetEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	isActive := event.Expiration.After(now) && event.Start.Before(now)
+	isActive := event.End.After(now) && event.Start.Before(now)
 
 	resp := EventInfoResponse{
 		Id:          event.Id,
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
-		Expiration:  event.Expiration,
+		End:         event.End,
 		IsActive:    isActive,
 	}
 	sendJsonResponse(w, resp)
@@ -192,7 +192,7 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser, err := FetchAppUser(u.Email, c)
+	existingUser, err := FetchAppUser(u.ID, c)
 	if err != nil {
 		c.Errorf("Not a registered user, cannot update an Event: %v", err)
 		http.Error(w, "Must register to create or update events.", http.StatusForbidden)
@@ -232,7 +232,7 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	event.Description = updated.Description
 	event.Private = updated.Private
 	event.Start = updated.Start
-	event.Expiration = updated.Expiration
+	event.End = updated.End
 
 	event.Modified = time.Now()
 
@@ -244,14 +244,14 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	isActive := event.Expiration.After(now) && event.Start.Before(now)
+	isActive := event.End.After(now) && event.Start.Before(now)
 
 	resp := EventInfoResponse{
 		Id:          event.Id,
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
-		Expiration:  event.Expiration,
+		End:         event.End,
 		IsActive:    isActive,
 	}
 	sendJsonResponse(w, resp)
@@ -264,7 +264,7 @@ func DeleteEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
-	eventKey, err := createDSKey(event.Id, c)
+	eventKey, err := getEventDSKey(event.Id, c)
 	if err != nil {
 		c.Errorf("Failed to create event entity key: %v\n", err)
 		return nil, err
@@ -279,7 +279,7 @@ func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
 }
 
 func FetchEvent(eventId string, c appengine.Context) (*Event, error) {
-	eventKey, err := createDSKey(eventId, c)
+	eventKey, err := getEventDSKey(eventId, c)
 	if err != nil {
 		c.Errorf("Cannot fetch Event: %v", err)
 		return nil, err
@@ -331,18 +331,27 @@ func validFeedOrder(order string) bool {
 		order = order[1:]
 	}
 
-	if order == "Created" || order == "Expiration" {
+	if order == "Created" || order == "End" {
 		return true
 	}
 
 	return false
 }
 
-func createDSKey(eventId string, c appengine.Context) (*datastore.Key, error) {
-	if eventId == "" {
-		return nil, errors.New("Cannot create key with empty ID.")
+func getEventDSKey(eventID string, c appengine.Context) (*datastore.Key, error) {
+	if eventID == "" {
+		return nil, errors.New("No eventID provided.")
 	}
 
-	eventKey := datastore.NewKey(c, EVENT_KIND, eventId, 0, nil)
+	eventKeyID := createEventKeyID(eventID, c)
+	eventKey := datastore.NewKey(c, EVENT_KIND, eventKeyID, 0, nil)
 	return eventKey, nil
+}
+
+func createEventKeyID(eventID string, c appengine.Context) string {
+	if eventID == "" {
+		c.Errorf("Creating an event entity key with no eventID!")
+	}
+
+	return "event:" + eventID
 }

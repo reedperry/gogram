@@ -90,7 +90,7 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
-		Expiration:  event.Expiration,
+		End:         event.End,
 		Creator:     creator,
 		Created:     event.Created,
 		Modified:    event.Modified,
