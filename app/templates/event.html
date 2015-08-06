@@ -10,17 +10,19 @@
   <body>
     <div class="container-fluid">
         <h2>{{.Name}}</h2>
-        <div>{{.Description}}</div>
-        <div>Started {{.Start}}</div>
-        <div>Ends {{.End}}</div>
-        <div>Created By {{.Creator}}</div>
-        <div>Modified {{.Modified}}</div>
+        <p>
+            <div>{{.Description}}</div>
+            <div>Started {{.Start}}</div>
+            <div>Ends {{.End}}</div>
+            <div>Created By {{.Creator}}</div>
+            <div>Modified {{.Modified}}</div>
+        </p>
 
         {{range .Posts}}
         <div class="row">
             <div class="col-md-1">[score?]</div>
             <div class="col-md-1">{{.Username}}</div>
-            <div class="col-md-8">{{.Text}}</div>
+            <div class="col-md-8"><a href="/p/{{.Id}}">{{.Text}}</a></div>
         </div>
         <div class="row">
             <div class="col-md-12">

@@ -109,7 +109,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = fetchPost(id, c)
+	_, err = FetchPost(id, c)
 	if err != datastore.ErrNoSuchEntity {
 		c.Errorf("Duplicate post ID generated! Aborting. Error: %v", err)
 		http.Error(w, "Failed to create a post, please try again.", http.StatusInternalServerError)
@@ -156,7 +156,7 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := fetchPost(postId, c)
+	post, err := FetchPost(postId, c)
 	if err != nil {
 		c.Errorf("Cannot attach image - no post found with ID %v.", postId)
 		http.NotFound(w, r)
@@ -213,7 +213,7 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	postId := GetRequestVar(r, "id", c)
 
-	post, err := fetchPost(postId, c)
+	post, err := FetchPost(postId, c)
 	if err != nil {
 		c.Infof("Could not fetch post %v: %v", postId, err.Error())
 		http.NotFound(w, r)
@@ -244,7 +244,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	postId := GetRequestVar(r, "id", c)
 
-	post, err := fetchPost(postId, c)
+	post, err := FetchPost(postId, c)
 	if err != nil {
 		c.Errorf("Cannot update - post ID %v not found.", postId)
 		http.NotFound(w, r)
@@ -316,7 +316,7 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	postId := GetRequestVar(r, "id", c)
 
-	post, err := fetchPost(postId, c)
+	post, err := FetchPost(postId, c)
 	if err != nil {
 		c.Errorf("Cannot delete - post ID %v not found.", postId)
 		http.NotFound(w, r)
@@ -366,7 +366,7 @@ func queueProcessing(filename string, c appengine.Context) error {
 	return err
 }
 
-func fetchPost(postID string, c appengine.Context) (*Post, error) {
+func FetchPost(postID string, c appengine.Context) (*Post, error) {
 	post := new(Post)
 	postKey, err := getPostDSKey(postID, c)
 	if err != nil {

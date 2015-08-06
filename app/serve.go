@@ -35,7 +35,7 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing event ID.", http.StatusBadRequest)
 	}
 
-	t, err := template.ParseFiles("event.html")
+	t, err := template.ParseFiles("templates/event.html")
 	if err != nil {
 		c.Errorf("Failed to parse event template: %v", err)
 		http.Error(w, "Failed to load event.", http.StatusInternalServerError)
@@ -103,12 +103,45 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func ServePost(w http.ResponseWriter, r *http.Request) {
-	content, err := ioutil.ReadFile("post.html")
+	c := appengine.NewContext(r)
+
+	id := api.GetRequestVar(r, "id", c)
+	if id == "" {
+		http.Error(w, "Missing post ID.", http.StatusBadRequest)
+	}
+
+	t, err := template.ParseFiles("templates/post.html")
 	if err != nil {
-		fmt.Fprint(w, "post.html not found!")
+		c.Errorf("Failed to parse post template: %v", err)
+		http.Error(w, "Failed to load post.", http.StatusInternalServerError)
 		return
 	}
 
+	post, err := api.FetchPost(id, c)
+	if err != nil {
+		http.Error(w, "Failed to fetch post.", http.StatusInternalServerError)
+		return
+	}
+
+	appUser, err := api.FetchAppUser(post.UserId, c)
+	var username = "[deleted]"
+	if err != nil {
+		c.Infof("No user found for post %v", post.Id)
+	} else {
+		username = appUser.Username
+	}
+
+	postView := &api.PostView{
+		Username: username,
+		Id:       post.Id,
+		EventId:  post.EventId,
+		Image:    post.Image,
+		Text:     post.Text,
+		Created:  post.Created,
+		Modified: post.Modified,
+	}
+
+	t.Execute(w, postView)
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, string(content))
 }
