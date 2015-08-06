@@ -19,7 +19,7 @@ type Event struct {
 	Name        string    `json:"name"`
 	Description string    `json:"desc"`
 	Start       time.Time `json:"start"`
-	End         time.Time `json:"expiration"`
+	End         time.Time `json:"end"`
 	Private     bool      `json:"private"`
 	Creator     string    `json:"creator"`
 	Created     time.Time `json:"created"`
@@ -30,7 +30,7 @@ type EventView struct {
 	Name        string     `json:"name"`
 	Description string     `json:"desc"`
 	Start       time.Time  `json:"start"`
-	End         time.Time  `json:"expiration"`
+	End         time.Time  `json:"end"`
 	Creator     string     `json:"creator"`
 	Created     time.Time  `json:"created"`
 	Modified    time.Time  `json:"modified"`
@@ -47,7 +47,7 @@ type EventInfoResponse struct {
 	Name        string    `json:"name"`
 	Description string    `json:"desc"`
 	Start       time.Time `json:"start"`
-	End         time.Time `json:"expiration"`
+	End         time.Time `json:"end"`
 	IsActive    bool      `json:"isActive"`
 }
 
@@ -68,7 +68,7 @@ func (event *Event) IsValid() bool {
 
 // TODO Put date range limitations on event start/end times
 func (event *Event) IsValidRequest() bool {
-	if event.Id == "" || event.Name == "" || event.Start.IsZero() || event.End.IsZero() {
+	if event.Name == "" || event.Start.IsZero() || event.End.IsZero() {
 		return false
 	}
 

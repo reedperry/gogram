@@ -24,7 +24,7 @@
                     for (i in data) {
                         content += '<tr><td><h5><a href="/e/' + data[i].id + '">' + 
                             data[i].name + '</a></h5><div>' + data[i].desc + '</div></td>' +
-                            '<td>Ends ' + new Date(data[i].expiration).toLocaleString() + '</td></tr>';
+                            '<td>Ends ' + new Date(data[i].end).toLocaleString() + '</td></tr>';
                     }
 
                     $('#events tbody').html(content);
