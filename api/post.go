@@ -88,6 +88,20 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate that the event ID matches an existing, active event
+	event, err := FetchEvent(reqPost.EventId, c)
+	if err != nil {
+		c.Infof("Could not find event %v referenced by post: %v", reqPost.EventId, err)
+		http.Error(w, "Post does not match an existing event.", http.StatusBadRequest)
+		return
+	}
+
+	if !event.IsActive() {
+		c.Infof("Cannot post to inactive event %v.", reqPost.EventId)
+		http.Error(w, "This event is not currently active.", http.StatusForbidden)
+		return
+	}
+
 	id, err := NewUId(c)
 	if err != nil {
 		c.Errorf("Failed to generate post ID: %v", err)
@@ -267,6 +281,20 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	if updatedPost.EventId != post.EventId {
 		c.Infof("Cannot move post from event %v to event %v!", post.EventId, updatedPost.EventId)
 		http.Error(w, "Cannot move this post to a different event.", http.StatusBadRequest)
+		return
+	}
+
+	// Validate that the event ID matches an existing, active event
+	event, err := FetchEvent(updatedPost.EventId, c)
+	if err != nil {
+		c.Infof("Could not find event %v referenced by post: %v", updatedPost.EventId, err)
+		http.Error(w, "Post does not match an existing event.", http.StatusBadRequest)
+		return
+	}
+
+	if !event.IsActive() {
+		c.Infof("Cannot update a post for inactive event %v.", updatedPost.EventId)
+		http.Error(w, "This event is not currently active.", http.StatusForbidden)
 		return
 	}
 
