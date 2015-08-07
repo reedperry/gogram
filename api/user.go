@@ -24,7 +24,7 @@ type UserResponse struct {
 
 type AppUser struct {
 	Email     string    `json:"-"`
-	Id        string    `json:"id"`
+	ID        string    `json:"id"`
 	Username  string    `json:"username"`
 	FirstName string    `json:"firstName"`
 	LastName  string    `json:"lastName"`
@@ -33,7 +33,7 @@ type AppUser struct {
 }
 
 func (appUser *AppUser) IsValid() bool {
-	return appUser.Id != "" && appUser.Username != "" &&
+	return appUser.ID != "" && appUser.Username != "" &&
 		!appUser.Created.IsZero() && !appUser.Modified.IsZero()
 }
 
@@ -51,12 +51,12 @@ func (appUser *AppUser) DSKey(c appengine.Context) (*datastore.Key, error) {
 }
 
 func (appUser *AppUser) DSKeyID(c appengine.Context) (string, error) {
-	if appUser.Id == "" {
-		c.Warningf("Attempted to create an AppUser entity key with no Id!")
-		return "", errors.New("AppUser has no Id!")
+	if appUser.ID == "" {
+		c.Warningf("Attempted to create an AppUser entity key with no ID!")
+		return "", errors.New("AppUser has no ID!")
 	}
 
-	return "user:" + appUser.Id, nil
+	return "user:" + appUser.ID, nil
 }
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +135,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Copy over data from signed-in user account
 	u := user.Current(c)
-	appUser.Id = u.ID
+	appUser.ID = u.ID
 	appUser.Email = u.Email
 
 	// Check if a user already exists for this account
@@ -171,14 +171,14 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.Infof("Creating user %v...", appUser.Id)
+	c.Infof("Creating user %v...", appUser.ID)
 
 	_, err = saveAppUser(appUser, c)
 	if err != nil {
 		handleError(w, err, &c)
 	}
 
-	c.Infof("Created user %v.", appUser.Id)
+	c.Infof("Created user %v.", appUser.ID)
 
 	resp := UserResponse{true, *appUser}
 	w.WriteHeader(http.StatusCreated)
@@ -206,12 +206,12 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		appUser.Created = existingUser.Created
 		appUser.Modified = time.Now()
 	} else {
-		c.Errorf("Cannot update a user '%v'. No such user.", appUser.Id)
-		http.Error(w, fmt.Sprintf("User %v does not exist, cannot update.", appUser.Id), http.StatusBadRequest)
+		c.Errorf("Cannot update a user '%v'. No such user.", appUser.ID)
+		http.Error(w, fmt.Sprintf("User %v does not exist, cannot update.", appUser.ID), http.StatusBadRequest)
 	}
 
-	if appUser.Id != u.ID {
-		c.Infof("User %v attempted to modify user %v. Denied.", u.ID, appUser.Id)
+	if appUser.ID != u.ID {
+		c.Infof("User %v attempted to modify user %v. Denied.", u.ID, appUser.ID)
 		http.Error(w, "Not authorized to change another user!", http.StatusForbidden)
 		return
 	}
@@ -222,14 +222,14 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.Infof("Updating user %v...", appUser.Id)
+	c.Infof("Updating user %v...", appUser.ID)
 
 	_, err = saveAppUser(appUser, c)
 	if err != nil {
 		handleError(w, err, &c)
 	}
 
-	c.Infof("Updated user %v.", appUser.Id)
+	c.Infof("Updated user %v.", appUser.ID)
 
 	resp := UserResponse{true, *appUser}
 	sendJsonResponse(w, resp)
@@ -280,7 +280,7 @@ func deleteAppUser(userID string, c appengine.Context) error {
 }
 
 func saveAppUser(appUser *AppUser, c appengine.Context) (*datastore.Key, error) {
-	userKey, err := getUserDSKey(appUser.Id, c)
+	userKey, err := getUserDSKey(appUser.ID, c)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func saveAppUser(appUser *AppUser, c appengine.Context) (*datastore.Key, error) 
 func getUserID(username string, c appengine.Context) (string, error) {
 	q := datastore.NewQuery(USER_KIND).
 		Filter("Username =", username).
-		Project("Id")
+		Project("ID")
 
 	for r := q.Run(c); ; {
 		var u AppUser
@@ -309,7 +309,7 @@ func getUserID(username string, c appengine.Context) (string, error) {
 			return "", err
 		}
 
-		return u.Id, nil
+		return u.ID, nil
 	}
 }
 

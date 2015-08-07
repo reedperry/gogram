@@ -13,10 +13,10 @@ indexes:
 - kind: appUser
   properties:
   - name: Username
-  - name: Id
+  - name: ID
 
 - kind: post
   properties:
-  - name: EventId
+  - name: EventID
   - name: Created
     direction: desc

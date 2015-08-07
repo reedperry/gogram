@@ -8,7 +8,7 @@ import (
 
 func TestIsActive(t *testing.T) {
 	event := Event{
-		Id:          "123myid",
+		ID:          "123myid",
 		Name:        "Event Name",
 		Description: "Interesting Event",
 		Start:       time.Now().Add(-time.Hour),

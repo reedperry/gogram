@@ -17,9 +17,9 @@ import (
 const POST_KIND = "post"
 
 type Post struct {
-	UserId   string    `json:"user"`
-	Id       string    `json:"id"`
-	EventId  string    `json:"event"`
+	UserID   string    `json:"user"`
+	ID       string    `json:"id"`
+	EventID  string    `json:"event"`
 	Image    string    `json:"image"`
 	Text     string    `json:"text"`
 	Created  time.Time `json:"posted"`
@@ -28,8 +28,8 @@ type Post struct {
 
 type PostView struct {
 	Username string    `json:"username"`
-	Id       string    `json:"id"`
-	EventId  string    `json:"event"`
+	ID       string    `json:"id"`
+	EventID  string    `json:"event"`
 	Image    string    `json:"image"`
 	Text     string    `json:"text"`
 	Created  time.Time `json:"posted"`
@@ -37,7 +37,7 @@ type PostView struct {
 }
 
 func (post *Post) IsValid() bool {
-	if post.UserId == "" || post.Id == "" || post.EventId == "" || post.Created.IsZero() {
+	if post.UserID == "" || post.ID == "" || post.EventID == "" || post.Created.IsZero() {
 		return false
 	}
 
@@ -45,7 +45,7 @@ func (post *Post) IsValid() bool {
 }
 
 func (post *Post) IsValidRequest() bool {
-	if post.EventId == "" {
+	if post.EventID == "" {
 		return false
 	}
 
@@ -53,17 +53,17 @@ func (post *Post) IsValidRequest() bool {
 }
 
 func (post *Post) createFileName() string {
-	return fmt.Sprintf("%v/%v", post.UserId, post.Id)
+	return fmt.Sprintf("%v/%v", post.UserID, post.ID)
 }
 
 type CreatePostResponse struct {
 	Ok bool   `json:"ok"`
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type Comment struct {
-	UserId string    `json:"userId"`
-	PostId string    `json:"postId"`
+	UserID string    `json:"userId"`
+	PostID string    `json:"postId"`
 	Text   string    `json:"text"`
 	Date   time.Time `json:"date"`
 }
@@ -89,20 +89,20 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate that the event ID matches an existing, active event
-	event, err := FetchEvent(reqPost.EventId, c)
+	event, err := FetchEvent(reqPost.EventID, c)
 	if err != nil {
-		c.Infof("Could not find event %v referenced by post: %v", reqPost.EventId, err)
+		c.Infof("Could not find event %v referenced by post: %v", reqPost.EventID, err)
 		http.Error(w, "Post does not match an existing event.", http.StatusBadRequest)
 		return
 	}
 
 	if !event.IsActive() {
-		c.Infof("Cannot post to inactive event %v.", reqPost.EventId)
+		c.Infof("Cannot post to inactive event %v.", reqPost.EventID)
 		http.Error(w, "This event is not currently active.", http.StatusForbidden)
 		return
 	}
 
-	id, err := NewUId(c)
+	id, err := NewUID(c)
 	if err != nil {
 		c.Errorf("Failed to generate post ID: %v", err)
 		http.Error(w, "Failed to create a post.", http.StatusInternalServerError)
@@ -118,9 +118,9 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	post := &Post{
-		UserId:   currentUser.ID,
-		Id:       id,
-		EventId:  reqPost.EventId,
+		UserID:   currentUser.ID,
+		ID:       id,
+		EventID:  reqPost.EventID,
 		Image:    "",
 		Text:     reqPost.Text,
 		Created:  now,
@@ -147,7 +147,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 // This function should be called immediately after a successfull call to CreatePost.
 func AttachImage(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := GetRequestVar(r, "id", c)
+	postID := GetRequestVar(r, "id", c)
 
 	currentUser, err := getRequestUser(r)
 	if err != nil {
@@ -156,26 +156,26 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := FetchPost(postId, c)
+	post, err := FetchPost(postID, c)
 	if err != nil {
-		c.Errorf("Cannot attach image - no post found with ID %v.", postId)
+		c.Errorf("Cannot attach image - no post found with ID %v.", postID)
 		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := FetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserID, c)
 	if err != nil {
-		c.Errorf("Could not find AppUser with ID %v: %v", post.UserId, err)
+		c.Errorf("Could not find AppUser with ID %v: %v", post.UserID, err)
 		http.Error(w, "Failed to post image: user not found.", http.StatusInternalServerError)
 		return
-	} else if postUser.Id != currentUser.ID {
-		c.Errorf("User with ID %v cannot attach an image to a post by user ID %v", currentUser.ID, postUser.Id)
+	} else if postUser.ID != currentUser.ID {
+		c.Errorf("User with ID %v cannot attach an image to a post by user ID %v", currentUser.ID, postUser.ID)
 		http.Error(w, "Cannot post for a different user.", http.StatusForbidden)
 		return
 	}
 
 	if post.Image != "" {
-		c.Errorf("Cannot attach image - Post %v by user %v already has an image attached.", postUser.Id, postId)
+		c.Errorf("Cannot attach image - Post %v by user %v already has an image attached.", postUser.ID, postID)
 		http.Error(w, "Cannot overwrite the image in a post.", http.StatusForbidden)
 		return
 	}
@@ -185,15 +185,15 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 	filename := post.createFileName()
 	obj, err := imgstore.Create(filename, r)
 	if err != nil {
-		c.Errorf("Failed to store image for user %v: %v", post.UserId, err)
+		c.Errorf("Failed to store image for user %v: %v", post.UserID, err)
 		http.Error(w, "An error occurred while attempting to save the file.", http.StatusInternalServerError)
 		return
 	}
 
-	c.Infof("Stored file %v for user %v.", filename, post.UserId)
+	c.Infof("Stored file %v for user %v.", filename, post.UserID)
 
 	if err = queueProcessing(filename, c); err != nil {
-		c.Errorf("Failed to add file %v for post %v to image processing queue.", filename, post.Id)
+		c.Errorf("Failed to add file %v for post %v to image processing queue.", filename, post.ID)
 	}
 
 	post.Image = imgstore.ObjectLink(obj)
@@ -201,7 +201,7 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 
 	_, err = savePost(post, c)
 	if err != nil {
-		c.Errorf("Failed to store updated Post (ID=%v) by user %v: %v", post.Id, postUser.Id, err)
+		c.Errorf("Failed to store updated Post (ID=%v) by user %v: %v", post.ID, postUser.ID, err)
 		http.Error(w, "Failed to update the post.", http.StatusInternalServerError)
 		return
 	}
@@ -211,26 +211,26 @@ func AttachImage(w http.ResponseWriter, r *http.Request) {
 
 func GetPost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := GetRequestVar(r, "id", c)
+	postID := GetRequestVar(r, "id", c)
 
-	post, err := FetchPost(postId, c)
+	post, err := FetchPost(postID, c)
 	if err != nil {
-		c.Infof("Could not fetch post %v: %v", postId, err.Error())
+		c.Infof("Could not fetch post %v: %v", postID, err.Error())
 		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := FetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserID, c)
 	if err != nil {
-		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
+		c.Infof("User %v who created post %v could not be found: %v", post.UserID, postID, err)
 		http.NotFound(w, r)
 		return
 	}
 
 	postView := &PostView{
 		Username: postUser.Username,
-		Id:       post.Id,
-		EventId:  post.EventId,
+		ID:       post.ID,
+		EventID:  post.EventID,
 		Image:    post.Image,
 		Text:     post.Text,
 		Created:  post.Created,
@@ -242,24 +242,24 @@ func GetPost(w http.ResponseWriter, r *http.Request) {
 
 func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := GetRequestVar(r, "id", c)
+	postID := GetRequestVar(r, "id", c)
 
-	post, err := FetchPost(postId, c)
+	post, err := FetchPost(postID, c)
 	if err != nil {
-		c.Errorf("Cannot update - post ID %v not found.", postId)
+		c.Errorf("Cannot update - post ID %v not found.", postID)
 		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := FetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserID, c)
 	if err != nil {
-		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
+		c.Infof("User %v who created post %v could not be found: %v", post.UserID, postID, err)
 		http.NotFound(w, r)
 		return
 	}
 
 	currentUser, err := getRequestUser(r)
-	if currentUser.ID != postUser.Id {
+	if currentUser.ID != postUser.ID {
 		http.Error(w, "You can only update your own posts.", http.StatusForbidden)
 		return
 	}
@@ -278,22 +278,22 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if updatedPost.EventId != post.EventId {
-		c.Infof("Cannot move post from event %v to event %v!", post.EventId, updatedPost.EventId)
+	if updatedPost.EventID != post.EventID {
+		c.Infof("Cannot move post from event %v to event %v!", post.EventID, updatedPost.EventID)
 		http.Error(w, "Cannot move this post to a different event.", http.StatusBadRequest)
 		return
 	}
 
 	// Validate that the event ID matches an existing, active event
-	event, err := FetchEvent(updatedPost.EventId, c)
+	event, err := FetchEvent(updatedPost.EventID, c)
 	if err != nil {
-		c.Infof("Could not find event %v referenced by post: %v", updatedPost.EventId, err)
+		c.Infof("Could not find event %v referenced by post: %v", updatedPost.EventID, err)
 		http.Error(w, "Post does not match an existing event.", http.StatusBadRequest)
 		return
 	}
 
 	if !event.IsActive() {
-		c.Infof("Cannot update a post for inactive event %v.", updatedPost.EventId)
+		c.Infof("Cannot update a post for inactive event %v.", updatedPost.EventID)
 		http.Error(w, "This event is not currently active.", http.StatusForbidden)
 		return
 	}
@@ -304,7 +304,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 	_, err = savePost(post, c)
 	if err != nil {
-		c.Errorf("Failed to store updated Post (ID=%v) by user %v: %v", post.Id, postUser.Id, err)
+		c.Errorf("Failed to store updated Post (ID=%v) by user %v: %v", post.ID, postUser.ID, err)
 		http.Error(w, "Failed to update the post.", http.StatusInternalServerError)
 		return
 	}
@@ -314,31 +314,31 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 func DeletePost(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	postId := GetRequestVar(r, "id", c)
+	postID := GetRequestVar(r, "id", c)
 
-	post, err := FetchPost(postId, c)
+	post, err := FetchPost(postID, c)
 	if err != nil {
-		c.Errorf("Cannot delete - post ID %v not found.", postId)
+		c.Errorf("Cannot delete - post ID %v not found.", postID)
 		http.NotFound(w, r)
 		return
 	}
 
-	postUser, err := FetchAppUser(post.UserId, c)
+	postUser, err := FetchAppUser(post.UserID, c)
 	if err != nil {
-		c.Infof("User %v who created post %v could not be found: %v", post.UserId, postId, err)
+		c.Infof("User %v who created post %v could not be found: %v", post.UserID, postID, err)
 		http.NotFound(w, r)
 		return
 	}
 
 	currentUser, err := getRequestUser(r)
-	if currentUser.ID != postUser.Id {
+	if currentUser.ID != postUser.ID {
 		http.Error(w, "You can only update your own posts.", http.StatusForbidden)
 		return
 	}
 
-	err = deletePost(postId, c)
+	err = deletePost(postID, c)
 	if err != nil {
-		c.Errorf("Failed to delete post %v from user %v.", postId, postUser.Id)
+		c.Errorf("Failed to delete post %v from user %v.", postID, postUser.ID)
 		http.Error(w, "Failed to delete post.", http.StatusInternalServerError)
 		return
 	}
@@ -347,10 +347,10 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 	err = imgstore.Delete(filename, r)
 	if err != nil {
 		// TODO Add a retry to task queue if we can?
-		c.Errorf("Failed to delete file %v for user %v: %v", filename, post.UserId, err)
+		c.Errorf("Failed to delete file %v for user %v: %v", filename, post.UserID, err)
 	}
 
-	c.Infof("Deleted post %v from user %v.", postId, postUser.Id)
+	c.Infof("Deleted post %v from user %v.", postID, postUser.ID)
 
 	resp := OkResponse{true}
 	sendJsonResponse(w, resp)
@@ -381,9 +381,9 @@ func FetchPost(postID string, c appengine.Context) (*Post, error) {
 	}
 }
 
-func FetchPosts(eventId string, c appengine.Context) (*[]Post, error) {
+func FetchPosts(eventID string, c appengine.Context) (*[]Post, error) {
 	q := datastore.NewQuery(POST_KIND).
-		Filter("EventId =", eventId).
+		Filter("EventID =", eventID).
 		Limit(20).
 		Order("-Created")
 
@@ -399,7 +399,7 @@ func FetchPosts(eventId string, c appengine.Context) (*[]Post, error) {
 }
 
 func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
-	postKey, err := getPostDSKey(post.Id, c)
+	postKey, err := getPostDSKey(post.ID, c)
 	if err != nil {
 		return nil, err
 	}
@@ -412,8 +412,8 @@ func savePost(post *Post, c appengine.Context) (*datastore.Key, error) {
 	}
 }
 
-func deletePost(postId string, c appengine.Context) error {
-	postKey, err := getPostDSKey(postId, c)
+func deletePost(postID string, c appengine.Context) error {
+	postKey, err := getPostDSKey(postID, c)
 	if err != nil {
 		return err
 	}

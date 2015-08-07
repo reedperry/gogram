@@ -15,7 +15,7 @@ const EVENT_KIND = "event"
 const DEFAULT_ORDER = "-Created"
 
 type Event struct {
-	Id          string    `json:"id"`
+	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"desc"`
 	Start       time.Time `json:"start"`
@@ -39,11 +39,11 @@ type EventView struct {
 
 type CreateEventResponse struct {
 	Ok bool   `json:"ok"`
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 type EventInfoResponse struct {
-	Id          string    `json:"id"`
+	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"desc"`
 	Start       time.Time `json:"start"`
@@ -52,7 +52,7 @@ type EventInfoResponse struct {
 }
 
 func (event *Event) IsValid() bool {
-	if event.Id == "" || event.Name == "" ||
+	if event.ID == "" || event.Name == "" ||
 		event.Start.IsZero() || event.End.IsZero() ||
 		event.Creator == "" || event.Created.IsZero() {
 
@@ -118,22 +118,22 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eId, err := NewUId(c)
+	eID, err := NewUID(c)
 	if err != nil {
 		c.Errorf("Failed to generate event ID: %v", err)
 		http.Error(w, "Failed to create a new event.", http.StatusInternalServerError)
 		return
 	}
 
-	_, err = FetchEvent(eId, c)
+	_, err = FetchEvent(eID, c)
 	if err != datastore.ErrNoSuchEntity {
 		c.Errorf("Duplicate event ID generated! Aborting. Error: %v", err)
 		http.Error(w, "Failed to create a event, please try again.", http.StatusInternalServerError)
 		return
 	}
 
-	event.Id = eId
-	event.Creator = existingUser.Id
+	event.ID = eID
+	event.Creator = existingUser.ID
 	now := time.Now()
 	event.Created = now
 	event.Modified = now
@@ -155,7 +155,7 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := CreateEventResponse{true, event.Id}
+	resp := CreateEventResponse{true, event.ID}
 	w.WriteHeader(http.StatusCreated)
 	sendJsonResponse(w, resp)
 }
@@ -175,16 +175,16 @@ func EventsFeed(w http.ResponseWriter, r *http.Request) {
 
 func GetEvent(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	eventId := GetRequestVar(r, "id", c)
-	event, err := FetchEvent(eventId, c)
+	eventID := GetRequestVar(r, "id", c)
+	event, err := FetchEvent(eventID, c)
 	if err != nil {
-		c.Errorf("Failed to fetch event with ID %v: %v", eventId, err)
+		c.Errorf("Failed to fetch event with ID %v: %v", eventID, err)
 		http.NotFound(w, r)
 		return
 	}
 
 	resp := EventInfoResponse{
-		Id:          event.Id,
+		ID:          event.ID,
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
@@ -211,16 +211,16 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventId := GetRequestVar(r, "id", c)
-	event, err := FetchEvent(eventId, c)
+	eventID := GetRequestVar(r, "id", c)
+	event, err := FetchEvent(eventID, c)
 	if err != nil {
-		c.Errorf("Failed to fetch event with ID %v: %v", eventId, err)
+		c.Errorf("Failed to fetch event with ID %v: %v", eventID, err)
 		http.NotFound(w, r)
 		return
 	}
 
-	if event.Creator != existingUser.Id {
-		c.Errorf("User %v tried to update event created by %v - denied.", existingUser.Id, event.Creator)
+	if event.Creator != existingUser.ID {
+		c.Errorf("User %v tried to update event created by %v - denied.", existingUser.ID, event.Creator)
 		http.Error(w, "You are not authorized to updated this event.", http.StatusForbidden)
 		return
 	}
@@ -261,13 +261,13 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 
 	_, err = storeEvent(event, c)
 	if err != nil {
-		c.Errorf("Failed to store updated Event with ID %v: %v", event.Id, err)
+		c.Errorf("Failed to store updated Event with ID %v: %v", event.ID, err)
 		http.Error(w, "Failed to update the event.", http.StatusInternalServerError)
 		return
 	}
 
 	resp := EventInfoResponse{
-		Id:          event.Id,
+		ID:          event.ID,
 		Name:        event.Name,
 		Description: event.Description,
 		Start:       event.Start,
@@ -284,7 +284,7 @@ func DeleteEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
-	eventKey, err := getEventDSKey(event.Id, c)
+	eventKey, err := getEventDSKey(event.ID, c)
 	if err != nil {
 		c.Errorf("Failed to create event entity key: %v\n", err)
 		return nil, err
@@ -298,8 +298,8 @@ func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
 	}
 }
 
-func FetchEvent(eventId string, c appengine.Context) (*Event, error) {
-	eventKey, err := getEventDSKey(eventId, c)
+func FetchEvent(eventID string, c appengine.Context) (*Event, error) {
+	eventKey, err := getEventDSKey(eventID, c)
 	if err != nil {
 		c.Errorf("Cannot fetch Event: %v", err)
 		return nil, err

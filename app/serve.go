@@ -48,7 +48,7 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := api.FetchPosts(event.Id, c)
+	posts, err := api.FetchPosts(event.ID, c)
 	if err != nil {
 		http.Error(w, "Failed to fetch posts for event.", http.StatusInternalServerError)
 		return
@@ -58,18 +58,18 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 	for _, post := range *posts {
 
 		// Fill in current username for found posts
-		appUser, err := api.FetchAppUser(post.UserId, c)
+		appUser, err := api.FetchAppUser(post.UserID, c)
 		var username = "[deleted]"
 		if err != nil {
-			c.Infof("No user found for post %v", post.Id)
+			c.Infof("No user found for post %v", post.ID)
 		} else {
 			username = appUser.Username
 		}
 
 		eventPosts = append(eventPosts, api.PostView{
 			Username: username,
-			Id:       post.Id,
-			EventId:  post.EventId,
+			ID:       post.ID,
+			EventID:  post.EventID,
 			Image:    post.Image,
 			Text:     post.Text,
 			Created:  post.Created,
@@ -81,7 +81,7 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 	appUser, err := api.FetchAppUser(event.Creator, c)
 	var creator = "[deleted]"
 	if err != nil {
-		c.Infof("No user found for event %v", event.Id)
+		c.Infof("No user found for event %v", event.ID)
 	} else {
 		creator = appUser.Username
 	}
@@ -123,18 +123,18 @@ func ServePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appUser, err := api.FetchAppUser(post.UserId, c)
+	appUser, err := api.FetchAppUser(post.UserID, c)
 	var username = "[deleted]"
 	if err != nil {
-		c.Infof("No user found for post %v", post.Id)
+		c.Infof("No user found for post %v", post.ID)
 	} else {
 		username = appUser.Username
 	}
 
 	postView := &api.PostView{
 		Username: username,
-		Id:       post.Id,
-		EventId:  post.EventId,
+		ID:       post.ID,
+		EventID:  post.EventID,
 		Image:    post.Image,
 		Text:     post.Text,
 		Created:  post.Created,

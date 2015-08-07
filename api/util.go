@@ -46,7 +46,7 @@ func GetRequestVar(r *http.Request, varName string, c appengine.Context) string 
 	return value
 }
 
-func NewUId(c appengine.Context) (string, error) {
+func NewUID(c appengine.Context) (string, error) {
 	var id uint64
 	millis := time.Now().UnixNano() / 1000000
 	millis -= EPOCH

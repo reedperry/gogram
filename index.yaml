@@ -13,4 +13,4 @@ indexes:
 - kind: appUser
   properties:
   - name: Username
-  - name: Id
+  - name: ID

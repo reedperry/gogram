@@ -10,7 +10,7 @@ import (
 )
 
 // Temporary...testing duplicate ID generation
-func GenerateIds(w http.ResponseWriter, r *http.Request) {
+func GenerateIDs(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -18,7 +18,7 @@ func GenerateIds(w http.ResponseWriter, r *http.Request) {
 	set := make([]string, 1000)
 
 	for i := 0; i < 1000; i++ {
-		id, err := api.NewUId(c)
+		id, err := api.NewUID(c)
 		if err != nil {
 			continue
 		}
