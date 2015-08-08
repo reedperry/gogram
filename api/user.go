@@ -32,6 +32,14 @@ type AppUser struct {
 	Modified  time.Time `json:"modified"`
 }
 
+type AppUserView struct {
+	Username  string    `json:"username"`
+	FirstName string    `json:"firstName"`
+	LastName  string    `json:"lastName"`
+	Created   time.Time `json:"created"`
+	Posts     []Post    `json:"posts"`
+}
+
 func (appUser *AppUser) IsValid() bool {
 	return appUser.ID != "" && appUser.Username != "" &&
 		!appUser.Created.IsZero() && !appUser.Modified.IsZero()
@@ -149,7 +157,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Verify the username is not already in use
 	appUser.Username = strings.ToLower(appUser.Username)
-	_, err = fetchAppUserByName(appUser.Username, c)
+	_, err = FetchAppUserByName(appUser.Username, c)
 	if err == nil {
 		c.Infof("Username %v is already in use.", appUser.Username)
 		http.Error(w, fmt.Sprintf("Sorry, the username '%v' is already taken!", appUser.Username), http.StatusConflict)
@@ -250,7 +258,7 @@ func FetchAppUser(userID string, c appengine.Context) (*AppUser, error) {
 	}
 }
 
-func fetchAppUserByName(username string, c appengine.Context) (*AppUser, error) {
+func FetchAppUserByName(username string, c appengine.Context) (*AppUser, error) {
 	q := datastore.NewQuery(USER_KIND).
 		Filter("Username =", username)
 

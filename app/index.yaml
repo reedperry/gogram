@@ -20,3 +20,9 @@ indexes:
   - name: EventID
   - name: Created
     direction: desc
+
+- kind: post
+  properties:
+  - name: UserID
+  - name: Created
+    direction: desc

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+      <title>{{.Username}}</title>
+      <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.4/css/bootstrap.min.css">
+      <link href='//fonts.googleapis.com/css?family=Lato:400,400italic,700,700italic,300,300italic' rel='stylesheet' type='text/css'>
+      <link rel="stylesheet" href="/w/snap.css">
+</head>
+<body>
+    <div class="container-fluid">
+        <h2>{{.Username}}</h2>
+        <div>Registered: {{.Created}}</div>
+        <div>Full Name: {{.FirstName}} {{.LastName}}</div>
+
+        {{range .Posts}}
+        <div class="row">
+            <div class="col-md-1">[score?]</div>
+            <div class="col-md-8"><a href="/p/{{.ID}}">{{.Text}}</a></div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <img src="{{.Image}}_thumb"></img>
+            </div>
+        </div>
+        {{end}}
+    </div>
+  </body>
+</body>
+</html>

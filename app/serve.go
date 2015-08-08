@@ -48,7 +48,7 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := api.FetchPosts(event.ID, c)
+	posts, err := api.FetchEventPosts(event.ID, c)
 	if err != nil {
 		http.Error(w, "Failed to fetch posts for event.", http.StatusInternalServerError)
 		return
@@ -98,6 +98,46 @@ func ServeEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t.Execute(w, data)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+}
+
+func ServeUser(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+
+	username := api.GetRequestVar(r, "username", c)
+	if username == "" {
+		http.Error(w, "Missing username.", http.StatusBadRequest)
+	}
+
+	t, err := template.ParseFiles("templates/user.html")
+	if err != nil {
+		c.Errorf("Failed to parse user template: %v", err)
+		http.Error(w, "Failed to load user.", http.StatusInternalServerError)
+		return
+	}
+
+	appUser, err := api.FetchAppUserByName(username, c)
+	if err != nil {
+		http.Error(w, "User not found.", http.StatusNotFound)
+		return
+	}
+
+	posts, err := api.FetchUserPosts(appUser.ID, c)
+	if err != nil {
+		http.Error(w, "Failed to fetch posts for user.", http.StatusInternalServerError)
+		return
+	}
+
+	appUserView := &api.AppUserView{
+		Username:  appUser.Username,
+		FirstName: appUser.FirstName,
+		LastName:  appUser.LastName,
+		Created:   appUser.Created,
+		Posts:     *posts,
+	}
+
+	t.Execute(w, appUserView)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 }

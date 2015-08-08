@@ -381,7 +381,26 @@ func FetchPost(postID string, c appengine.Context) (*Post, error) {
 	}
 }
 
-func FetchPosts(eventID string, c appengine.Context) (*[]Post, error) {
+// TODO Need to control offset/limit/sort
+func FetchUserPosts(userID string, c appengine.Context) (*[]Post, error) {
+	q := datastore.NewQuery(POST_KIND).
+		Filter("UserID =", userID).
+		Limit(20).
+		Order("-Created")
+
+	posts := make([]Post, 0, 20)
+
+	_, err := q.GetAll(c, &posts)
+	if err != nil {
+		c.Errorf("Failed to get posts for user %v: %v", userID, err)
+		return nil, err
+	}
+
+	return &posts, nil
+}
+
+// TODO Need to control offset/limit/sort
+func FetchEventPosts(eventID string, c appengine.Context) (*[]Post, error) {
 	q := datastore.NewQuery(POST_KIND).
 		Filter("EventID =", eventID).
 		Limit(20).
@@ -391,7 +410,7 @@ func FetchPosts(eventID string, c appengine.Context) (*[]Post, error) {
 
 	_, err := q.GetAll(c, &posts)
 	if err != nil {
-		c.Errorf("Failed to get event feed: %v", err)
+		c.Errorf("Failed to get posts for event %v: %v", eventID, err)
 		return nil, err
 	}
 

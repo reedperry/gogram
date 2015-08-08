@@ -31,6 +31,7 @@ func Router() *mux.Router {
 	r.HandleFunc("/", ServeEventFeed).Methods("GET")
 	r.HandleFunc("/e/{id}", ServeEvent).Methods("GET")
 	r.HandleFunc("/p/{id}", ServePost).Methods("GET")
+	r.HandleFunc("/u/{username}", ServeUser).Methods("GET")
 
 	return r
 }
