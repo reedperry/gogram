@@ -12,7 +12,12 @@ import (
 )
 
 const EVENT_KIND = "event"
-const DEFAULT_ORDER = "-Created"
+const DEFAULT_FEED_ORDER = "-Created"
+
+// Maximum time between an even start and end
+const MAX_EVENT_LENGTH = time.Hour * 168 // 1 week
+// How far in the future an event can be scheduled to start
+const MAX_START_FUTURE = time.Hour * 672 // 4 weeks
 
 type Event struct {
 	ID          string    `json:"id"`
@@ -51,28 +56,50 @@ type EventInfoResponse struct {
 	IsActive    bool      `json:"isActive"`
 }
 
+// IsValid determines if an event object contains all required parts to
+// be stored in the database, and that their values are valid.
 func (event *Event) IsValid() bool {
-	if event.ID == "" || event.Name == "" ||
-		event.Start.IsZero() || event.End.IsZero() ||
+	if event.ID == "" || event.Name == "" || event.Description == "" ||
 		event.Creator == "" || event.Created.IsZero() {
 
 		return false
 	}
 
-	if event.Start.After(event.End) || event.End.Before(time.Now()) {
+	if !event.HasValidDuration() {
 		return false
 	}
 
 	return true
 }
 
-// TODO Put date range limitations on event start/end times
+// IsValidRequest determines if an event object sent in a user request
+// is contains all required parts, and their values are valid.
 func (event *Event) IsValidRequest() bool {
-	if event.Name == "" || event.Start.IsZero() || event.End.IsZero() {
+	if event.Name == "" || event.Description == "" {
+		return false
+	}
+
+	if !event.HasValidDuration() {
+		return false
+	}
+
+	return true
+}
+
+func (event *Event) HasValidDuration() bool {
+	if event.Start.IsZero() || event.End.IsZero() {
 		return false
 	}
 
 	if event.Start.After(event.End) || event.End.Before(time.Now()) {
+		return false
+	}
+
+	if event.End.Sub(event.Start) > MAX_EVENT_LENGTH {
+		return false
+	}
+
+	if event.Start.Sub(time.Now()) > MAX_START_FUTURE {
 		return false
 	}
 
@@ -80,7 +107,7 @@ func (event *Event) IsValidRequest() bool {
 }
 
 func (event *Event) IsActive() bool {
-	if event.Start.IsZero() || event.End.IsZero() {
+	if !event.HasValidDuration() {
 		return false
 	}
 
@@ -283,21 +310,6 @@ func DeleteEvent(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Not implemented."))
 }
 
-func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
-	eventKey, err := getEventDSKey(event.ID, c)
-	if err != nil {
-		c.Errorf("Failed to create event entity key: %v\n", err)
-		return nil, err
-	}
-
-	if key, err := datastore.Put(c, eventKey, event); err != nil {
-		c.Errorf("Failed to store event entity: %v\n", err)
-		return nil, err
-	} else {
-		return key, nil
-	}
-}
-
 func FetchEvent(eventID string, c appengine.Context) (*Event, error) {
 	eventKey, err := getEventDSKey(eventID, c)
 	if err != nil {
@@ -321,7 +333,7 @@ func fetchEventFeed(page, order string, c appengine.Context) (*[]Event, error) {
 		pageNum, _ = strconv.Atoi(page)
 	}
 
-	var orderBy string = DEFAULT_ORDER
+	var orderBy string = DEFAULT_FEED_ORDER
 	if validFeedOrder(order) {
 		orderBy = order
 	}
@@ -340,6 +352,21 @@ func fetchEventFeed(page, order string, c appengine.Context) (*[]Event, error) {
 	}
 
 	return &events, nil
+}
+
+func storeEvent(event *Event, c appengine.Context) (*datastore.Key, error) {
+	eventKey, err := getEventDSKey(event.ID, c)
+	if err != nil {
+		c.Errorf("Failed to create event entity key: %v\n", err)
+		return nil, err
+	}
+
+	if key, err := datastore.Put(c, eventKey, event); err != nil {
+		c.Errorf("Failed to store event entity: %v\n", err)
+		return nil, err
+	} else {
+		return key, nil
+	}
 }
 
 func validFeedOrder(order string) bool {
