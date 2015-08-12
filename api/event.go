@@ -3,6 +3,7 @@ package api
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/user"
 
 	"errors"
 	"net/http"
@@ -54,6 +55,12 @@ type EventInfoResponse struct {
 	Start       time.Time `json:"start"`
 	End         time.Time `json:"end"`
 	IsActive    bool      `json:"isActive"`
+}
+
+type ErrPrivateEvent struct{}
+
+func (e *ErrPrivateEvent) Error() string {
+	return "This event is private."
 }
 
 // IsValid determines if an event object contains all required parts to
@@ -113,6 +120,37 @@ func (event *Event) IsActive() bool {
 
 	now := time.Now()
 	return event.End.After(now) && event.Start.Before(now)
+}
+
+func (event *Event) AuthorizeView(c appengine.Context) error {
+	if !event.Private {
+		return nil
+	}
+
+	u := user.Current(c)
+	if u == nil {
+		c.Infof("No user signed in - Cannot access private event.")
+		return new(ErrPrivateEvent)
+	} else {
+		appUser, err := FetchAppUser(u.ID, c)
+		if err != nil {
+			c.Infof("Cannot find user with ID %v - Cannot access private event.", u.ID)
+			return new(ErrPrivateEvent)
+		}
+
+		cv := event.userCanView(appUser)
+		if !cv {
+			c.Infof("User %v is not authorized to view private event %v.", appUser.ID, event.ID)
+			return new(ErrPrivateEvent)
+		}
+	}
+
+	return nil
+}
+
+// TODO Not implemented yet - always denies view for private events
+func (event *Event) userCanView(appUser *AppUser) bool {
+	return false
 }
 
 func CreateEvent(w http.ResponseWriter, r *http.Request) {
@@ -210,6 +248,12 @@ func GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = event.AuthorizeView(c)
+	if err != nil {
+		http.Error(w, "This event is private. You are not authorized to view it.", http.StatusForbidden)
+		return
+	}
+
 	resp := EventInfoResponse{
 		ID:          event.ID,
 		Name:        event.Name,
@@ -218,6 +262,7 @@ func GetEvent(w http.ResponseWriter, r *http.Request) {
 		End:         event.End,
 		IsActive:    event.IsActive(),
 	}
+
 	sendJsonResponse(w, resp)
 }
 
