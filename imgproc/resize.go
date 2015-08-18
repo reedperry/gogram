@@ -12,19 +12,44 @@ import (
 	"io"
 )
 
-const MAX_SIZE = 100
+const TN_SIZE uint = 100
+const VIEW_SIZE uint = 1024
 const JPEG = "image/jpeg"
 const JPG = "image/jpg"
 const PNG = "image/png"
 const GIF = "image/gif"
 
-func makeThumbnail(filetype string, r io.Reader, w *storage.Writer) error {
+type resizer interface {
+	Resize(string, io.Reader, *storage.Writer) error
+	Filename(string) string
+}
+
+type ThumbnailSizer struct{}
+type ViewSizer struct{}
+
+func (t *ThumbnailSizer) Resize(filetype string, r io.Reader, w *storage.Writer) error {
+	return createSizedCopy(TN_SIZE, filetype, r, w)
+}
+
+func (t *ThumbnailSizer) Filename(filename string) string {
+	return filename + "_thumb"
+}
+
+func (v *ViewSizer) Resize(filetype string, r io.Reader, w *storage.Writer) error {
+	return createSizedCopy(VIEW_SIZE, filetype, r, w)
+}
+
+func (v *ViewSizer) Filename(filename string) string {
+	return filename + "_view"
+}
+
+func createSizedCopy(maxSize uint, filetype string, r io.Reader, w *storage.Writer) error {
 	img, err := decodeImage(r, filetype)
 	if err != nil {
 		return errors.New("Failed to decode image: " + err.Error())
 	}
 
-	tn := resize.Thumbnail(MAX_SIZE, MAX_SIZE, img, resize.Bicubic)
+	tn := resize.Thumbnail(maxSize, maxSize, img, resize.Bicubic)
 
 	err = encodeImage(w, filetype, tn)
 	if err != nil {

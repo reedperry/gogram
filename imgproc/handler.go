@@ -36,24 +36,36 @@ func ProcessImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.Infof("Processing image %v of type %v.", filename, filetype)
+	c.Infof("Processing image %v of type %v...", filename, filetype)
 
-	// Read file
-	reader, err := imgstore.Reader(filename, r)
+	tr := &ThumbnailSizer{}
+	err = doResize(tr, filename, filetype, r)
 	if err != nil {
-		c.Errorf("Failed to open file %v: %v", filename, err)
 		http.Error(w, "Failed to process image.", http.StatusInternalServerError)
 		return
 	}
 
+	vr := &ViewSizer{}
+	err = doResize(vr, filename, filetype, r)
+}
+
+func doResize(sizer resizer, filename, filetype string, r *http.Request) error {
+	c := appengine.NewContext(r)
+
+	// Read file out of storage
+	reader, err := imgstore.Reader(filename, r)
+	if err != nil {
+		c.Errorf("Failed to open file %v: %v", filename, err)
+		return err
+	}
+
 	defer reader.Close()
 
-	newName := thumbnailFilename(filename)
+	newName := sizer.Filename(filename)
 	writer, err := imgstore.Writer(newName, r)
 	if err != nil {
 		c.Errorf("Failed to open new file %v for writing: %v", newName, err)
-		http.Error(w, "Failed to process image.", http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	defer writer.Close()
@@ -62,17 +74,14 @@ func ProcessImage(w http.ResponseWriter, r *http.Request) {
 
 	c.Infof("Creating thumbnail %v of type %v from file %v.", newName, filetype, filename)
 
-	if err = makeThumbnail(filetype, reader, writer); err != nil {
+	if err = sizer.Resize(filetype, reader, writer); err != nil {
 		c.Errorf("Failed to create thumbnail from image %v: %v", filename, err)
-		http.Error(w, "Failed to process image.", http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	c.Infof("Created thumbnail %v.", newName)
-}
+	c.Infof("Created resized image: %v.", newName)
 
-func thumbnailFilename(filename string) string {
-	return filename + "_thumb"
+	return nil
 }
 
 func isAppEngineModuleRequest(r *http.Request) bool {

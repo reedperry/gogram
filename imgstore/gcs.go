@@ -195,6 +195,7 @@ func FileStats(filename string, r *http.Request) (*storage.Object, error) {
 
 // Delete removes an object by name from the bucket being used. If the object does not
 // exist and there is nothing to delete, Delete returns with no error.
+// TODO Delete thumbnail and web view copies too!
 func Delete(filename string, r *http.Request) error {
 	c := appengine.NewContext(r)
 	bucket, err := file.DefaultBucketName(c)
