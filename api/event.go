@@ -301,11 +301,11 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	err = readEntity(r, updated)
 	if err != nil {
 		c.Errorf("Failed to read event data from request: %v", err)
-		http.Error(w, "Invalid event data in request.", http.StatusBadRequest)
+		http.Error(w, "Could not read event from request.", http.StatusBadRequest)
 		return
 	}
 
-	if !event.IsValidRequest() {
+	if !updated.IsValidRequest() {
 		c.Infof("Invalid event request object.")
 		http.Error(w, "Invalid event data.", http.StatusBadRequest)
 		return
@@ -330,6 +330,12 @@ func UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	event.Modified = time.Now()
+
+	if !event.IsValid() {
+		c.Errorf("Event failed validation, aborting update.")
+		http.Error(w, "Failed to update the event.", http.StatusInternalServerError)
+		return
+	}
 
 	_, err = storeEvent(event, c)
 	if err != nil {
