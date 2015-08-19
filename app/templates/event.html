@@ -21,7 +21,7 @@
         {{range .Posts}}
         <div class="row">
             <div class="col-md-1">[score?]</div>
-            <div class="col-md-1">{{.Username}}</div>
+            <div class="col-md-1"><a href="/u/{{.Username}}">{{.Username}}</a></div>
             <div class="col-md-8"><a href="/p/{{.ID}}">{{.Text}}</a></div>
         </div>
         <div class="row">
